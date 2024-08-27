@@ -1,19 +1,24 @@
 #include "Team.h"
 
 Team::Team()
+    : name(""),
+      abbrev(""),
+      color(""),
+      elo(0.0),
+      city{"", 0.0, 0.0},
+      scheduleIdx(0)
 {
 }
 
 Team::Team(std::string teamName, std::string abbreviation, std::string teamColor,
-           double eloRating, std::string cityName, double lat, double lon)
+           double eloRating, std::string cityName, double lat, double lon, int schedule)
+    : name(teamName),
+      abbrev(abbreviation),
+      color(teamColor),
+      elo(eloRating),
+      city{cityName, lat, lon},
+      scheduleIdx{schedule}
 {
-    name = teamName;
-    abbrev = abbreviation;
-    color = teamColor;
-    elo = eloRating;
-    city.name = cityName;
-    city.latitude = lat;
-    city.longitude = lon;
 }
 
 Team::~Team() {}
@@ -42,4 +47,9 @@ double Team::getElo() const
 const City &Team::getCity() const
 {
     return city;
+}
+
+int Team::getSchedule() const
+{
+    return scheduleIdx;
 }

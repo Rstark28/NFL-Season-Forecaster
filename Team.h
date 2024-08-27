@@ -21,7 +21,7 @@ class Team
 public:
     Team();
     Team(std::string teamName, std::string abbreviation, std::string teamColor,
-         double eloRating, std::string cityName, double lat, double lon);
+         double eloRating, std::string cityName, double lat, double lon, int schedule);
     ~Team();
 
     // Getter functions
@@ -30,6 +30,7 @@ public:
     std::string getColor() const;
     double getElo() const;
     const City &getCity() const;
+    int getSchedule() const;
 
 private:
     std::string name;
@@ -37,6 +38,7 @@ private:
     std::string color;
     double elo;
     City city;
+    int scheduleIdx;
 };
 
 #endif // TEAM_H

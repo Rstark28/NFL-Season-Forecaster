@@ -9,7 +9,6 @@
 #include <set>
 #include <unordered_map>
 #include "Game.h"
-#include "Team.h"
 
 class NFLSim
 {

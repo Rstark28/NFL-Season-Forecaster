@@ -1,18 +1,14 @@
 #include "Game.h"
 
 Game::Game(std::vector<std::string> tokens, const std::unordered_map<std::string, Team> &teamMap)
+    : homeTeam(teamMap.at(tokens[1])),
+      awayTeam(tokens[2] == "BYE" ? teamMap.at(tokens[1]) : teamMap.at(tokens[2])),
+      isBye(tokens[2] == "BYE"),
+      isComplete(!isBye && tokens[3] == "Y"),
+      week(stoi(tokens[0])),
+      homeTeamScore(!isBye ? stoi(tokens[4]) : 0),
+      awayTeamScore(!isBye ? stoi(tokens[5]) : 0)
 {
-    week = stoi(tokens[0]);
-    homeTeam = teamMap.find(tokens[1])->second;
-    if (tokens[2] == "BYE")
-    {
-        isBye = true;
-        return;
-    }
-    awayTeam = teamMap.find(tokens[2])->second;
-    isComplete = (tokens[3] == "Y");
-    homeTeamScore = stoi(tokens[4]);
-    awayTeamScore = stoi(tokens[5]);
 }
 
 Game::~Game()

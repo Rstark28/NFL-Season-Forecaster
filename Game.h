@@ -37,14 +37,13 @@ private:
     // Logic functions
     void getHomeOddsStandard();
 
-    Team homeTeam;
-    Team awayTeam;
+    const Team &homeTeam;
+    const Team &awayTeam;
     bool isBye = false;
     bool isComplete = false;
     int week;
     int homeTeamScore = 0;
     int awayTeamScore = 0;
-    double homeOdds;
 };
 
 #endif

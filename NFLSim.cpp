@@ -29,7 +29,7 @@ void NFLSim::readSchedule(const std::string &filename)
         std::string teamName;
         std::getline(ss, teamName, ','); // Read team name
 
-        std::vector<Game> teamSchedule;
+        std::vector<Game> teamSchedule; // Vector to hold games for the team
         std::string gameInfo;
         int week = 0; // Start week counter
 
@@ -38,18 +38,18 @@ void NFLSim::readSchedule(const std::string &filename)
         {
             std::vector<std::string> tokens = processGameInfo(teamName, gameInfo, week);
 
-            // Create a temporary Game object for comparison
+            // Create a new Game object
             Game newGame(tokens, teamMap);
 
             // Insert the newGame into the set and check if it was inserted
-            std::pair<std::set<Game>::iterator, bool> result = uniqueGames.insert(newGame);
-            if (result.second)
+            auto result = uniqueGames.insert(newGame);
+            if (result.second) // If the game was inserted
             {
-                teamSchedule.emplace_back(newGame);
+                teamSchedule.push_back(newGame);
             }
             else
             {
-                teamSchedule.emplace_back(*result.first);
+                teamSchedule.push_back(*result.first); // Use the existing game
             }
 
             ++week; // Move to the next week
@@ -97,10 +97,14 @@ void NFLSim::readTeams(const std::string &filename)
     }
 
     std::string line;
-    std::getline(file, line);
+    std::getline(file, line); // Skip header
+
+    int lineNumber = 0; // Initialize line number to track team idx
 
     while (std::getline(file, line))
     {
+        ++lineNumber;
+
         std::stringstream ss(line);
         std::string teamName, abbreviation, color, city, eloStr, latStr, lonStr;
 
@@ -117,7 +121,7 @@ void NFLSim::readTeams(const std::string &filename)
         double longitude = std::stod(lonStr);
 
         // Create a Team object and add it to the unordered_map with team abbreviation as the key
-        teamMap[abbreviation] = Team(teamName, abbreviation, color, elo, city, latitude, longitude);
+        teamMap[abbreviation] = Team(teamName, abbreviation, color, elo, city, latitude, longitude, lineNumber);
     }
 
     file.close();
