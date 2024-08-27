@@ -46,15 +46,14 @@ void NFLSim::readSchedule(const std::string &filename)
             if (result.second) // If the game was inserted
             {
                 teamSchedule.push_back(newGame);
+                getHomeOddsStandard(newGame);
             }
             else
             {
                 teamSchedule.push_back(*result.first); // Use the existing game
             }
-
             ++week; // Move to the next week
         }
-
         NFLSchedule.push_back(teamSchedule);
     }
 
@@ -157,4 +156,76 @@ void NFLSim::printSchedule() const
         }
         std::cout << std::endl;
     }
+}
+
+double NFLSim::calculateDistance(const City &homeCity, const City &awayCity)
+{
+    // Radius of the Earth in meters
+    constexpr double R = 6378137.0;
+
+    // Convert degrees to radians
+    auto toRadians = [](double degrees)
+    {
+        return degrees * M_PI / 180.0;
+    };
+
+    double lat1 = toRadians(homeCity.latitude);
+    double lon1 = toRadians(homeCity.longitude);
+    double lat2 = toRadians(awayCity.latitude);
+    double lon2 = toRadians(awayCity.longitude);
+
+    // Haversine formula
+    double dLat = lat2 - lat1;
+    double dLon = lon2 - lon1;
+    double a = std::sin(dLat / 2) * std::sin(dLat / 2) +
+               std::cos(lat1) * std::cos(lat2) *
+                   std::sin(dLon / 2) * std::sin(dLon / 2);
+    double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
+    double distance = R * c;
+
+    // Convert distance from meters to miles
+    distance /= 1609.34;
+
+    return distance; // Distance in miles
+}
+
+double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam)
+{
+    double elo_diff = homeTeam.getElo() - awayTeam.getElo();
+
+    // if (NFLSchedule[homeTeam.getSchedule()][game.getWeek()].getAwayTeam().getName() == "BYE")
+    // {
+    //     elo_diff += 25;
+    // }
+    // if (NFLSchedule[awayTeam.getSchedule()][game.getWeek()].getAwayTeam().getName() == "BYE")
+    // {
+    //     elo_diff -= 25;
+    // }
+
+    return elo_diff;
+}
+
+double NFLSim::calculateHomeOdds(double elo_diff)
+{
+    return 1.0 / (1.0 + std::exp(-elo_diff / 400.0));
+}
+
+void NFLSim::getHomeOddsStandard(const Game &game)
+{
+    const Team &homeTeam = game.getHomeTeam();
+    const Team &awayTeam = game.getAwayTeam();
+
+    if (homeTeam.getName() == awayTeam.getName())
+    {
+        return;
+    }
+
+    double eloDiff = adjustEloForByes(game, homeTeam, awayTeam);
+
+    double distanceTraveled = calculateDistance(homeTeam.getCity(), awayTeam.getCity());
+    eloDiff += distanceTraveled / 1000.0; // Convert meters to kilometers if needed
+
+    double homeOdds = calculateHomeOdds(eloDiff);
+
+    std::cout << homeOdds << " - " << homeTeam.getName() << "|" << awayTeam.getName() << std::endl;
 }
