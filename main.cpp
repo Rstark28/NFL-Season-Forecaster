@@ -16,7 +16,6 @@ int main(int argc, char *argv[])
 
     // Pass the file name to NFLSim
     NFLSim newSim(filename);
-    newSim.printSchedule();
 
     return 0;
 }

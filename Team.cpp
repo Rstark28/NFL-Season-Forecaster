@@ -53,3 +53,8 @@ int Team::getSchedule() const
 {
     return scheduleIdx;
 }
+
+void Team::setElo(double newElo)
+{
+    elo = newElo;
+}

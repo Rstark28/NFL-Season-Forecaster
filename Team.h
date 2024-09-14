@@ -32,6 +32,9 @@ public:
     const City &getCity() const;
     int getSchedule() const;
 
+    // Setter functions
+    void setElo(double newElo);
+
 private:
     std::string name;
     std::string abbrev;

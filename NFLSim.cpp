@@ -6,13 +6,14 @@
  * return:  None
  * info:    Constructor for the NFLSim class. Initializes the simulation by reading the NFL team data
  *          from a file and the game schedule from another file. Also processes all games to calculate
- *          initial odds.
+ *          initial odds. Starts the query loop to handle user commands.
  */
 NFLSim::NFLSim(const std::string &filename)
 {
     readTeams("nfl_teams.csv");
     readSchedule(filename);
     processAllGames();
+    runQueryLoop();
 }
 
 /**
@@ -24,12 +25,53 @@ NFLSim::NFLSim(const std::string &filename)
 NFLSim::~NFLSim() {}
 
 /**
+ * func::   runQueryLoop
+ * param:   None
+ * return:  None
+ * info:    Runs a query loop that processes user commands to quit, update games, print the schedule,
+ *          or run the simulation.
+ */
+void NFLSim::runQueryLoop()
+{
+    std::string command;
+
+    while (true)
+    {
+        std::cout << "Enter command (quit, update, print, run): ";
+        std::getline(std::cin, command);
+
+        if (command == "quit")
+        {
+            break;
+        }
+        else if (command == "update")
+        {
+            updateGame();
+        }
+        else if (command == "print")
+        {
+            printSchedule();
+        }
+        else if (command == "run")
+        {
+            // Call method to run the simulation (not implemented)
+            std::cout << "Run simulation functionality is not yet implemented." << std::endl;
+        }
+        else
+        {
+            std::cout << "Unknown command. Please try again." << std::endl;
+        }
+    }
+}
+
+/**
  * func::   readSchedule
  * param:   filename A string representing the name of the file containing the schedule information.
  * return:  None
  * info:    Reads the schedule from the specified file, ensuring that no duplicate games are added
  *          to the schedule. Each team's schedule is stored in the NFLSchedule member variable.
  */
+
 void NFLSim::readSchedule(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -176,27 +218,31 @@ void NFLSim::printSchedule() const
 {
     // Define column widths for formatting
     const int teamColumnWidth = 20;
+    const int weekColumnWidth = 7; // Width for "Week XX |"
     const int gameColumnWidth = 30;
 
     std::cout << std::left << std::setw(teamColumnWidth) << "Team" << " | " << "Games" << std::endl;
-    std::cout << std::string(teamColumnWidth + gameColumnWidth + 3, '-') << std::endl;
+    std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 
     for (int i = 0; i < 32; ++i)
     {
         // Retrieve the team from the map using the index
-        auto teamPair = teamMapByIndex.find(i);
-
-        auto team = teamPair->second;
+        auto team = teamMapByIndex.at(i);
 
         // Print the team name
-        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | ";
+        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getElo() << std::endl;
+        std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 
         // Retrieve and print the games for the current team from the schedule
-        const auto &games = NFLSchedule[i];
+        const auto &games = NFLSchedule.at(i);
+
+        int weekIndex = 0;
 
         for (const auto &game : games)
         {
-            std::cout << game.printGame() << ", ";
+            std::cout << std::left << std::setw(teamColumnWidth) << ("Week " + std::to_string(weekIndex))
+                      << " | " << std::setw(gameColumnWidth) << game.printGame(*team) << std::endl;
+            ++weekIndex;
         }
 
         std::cout << std::endl;
@@ -312,7 +358,121 @@ void NFLSim::processAllGames()
         for (auto &game : weeklySchedule)
         {
             // Call getHomeOddsStandard for each game
-            getHomeOddsStandard(game);
+            if (!game.getIsComplete())
+            {
+                getHomeOddsStandard(game);
+            }
         }
     }
+}
+
+/**
+ * func::   updateGame
+ * param:   None
+ * return:  None
+ * info:    Sets game outcome.
+ */
+void NFLSim::updateGame()
+{
+    std::string teamAbbrev;
+    int week;
+    std::string score;
+
+    // Prompt for team abbreviation
+    std::cout << "Enter team abbreviation: ";
+    std::getline(std::cin, teamAbbrev);
+
+    // Prompt for game week
+    std::cout << "Enter game week (0-based index): ";
+    std::cin >> week;
+    std::cin.ignore(); // Ignore newline character left in the input buffer
+
+    // Prompt for score
+    std::cout << "Enter score (format: homeScore-awayScore): ";
+    std::getline(std::cin, score);
+
+    // Parse the score
+    size_t dashPos = score.find('-');
+    if (dashPos == std::string::npos)
+    {
+        std::cerr << "Invalid score format. Use 'homeScore-awayScore'." << std::endl;
+        return;
+    }
+
+    int homeScore = std::stoi(score.substr(0, dashPos));
+    int awayScore = std::stoi(score.substr(dashPos + 1));
+
+    // Find the team using the abbreviation
+    auto teamIt = teamMapByAbbreviation.find(teamAbbrev);
+    if (teamIt == teamMapByAbbreviation.end())
+    {
+        std::cerr << "Team abbreviation not found." << std::endl;
+        return;
+    }
+
+    auto team = teamIt->second;
+    int scheduleIdx = team->getSchedule(); // Get the schedule index for the team
+
+    // Check if the week is valid
+    if (scheduleIdx < 0 || scheduleIdx > 31 || week < 0 || week > 18)
+    {
+        std::cerr << "Invalid week or schedule index." << std::endl;
+        return;
+    }
+
+    // Retrieve the game and update the scores
+    Game &game = NFLSchedule[scheduleIdx][week];
+    game.setHomeTeamScore(homeScore);
+    game.setAwayTeamScore(awayScore);
+    game.setIsComplete(true);
+    updateEloRatings(game);
+    processAllGames();
+
+    std::cout << "Game and elo updated." << std::endl;
+}
+
+void NFLSim::updateEloRatings(const Game &game)
+{
+    const double K = 20.0;                  // K-factor
+    const double MOV_MULTIPLIER_BASE = 2.2; // Base for margin-of-victory multiplier
+    const double MOV_SCALE = 0.001;         // Scaling factor for Elo difference
+
+    // Get home and away teams
+    auto &homeTeam = game.getHomeTeam();
+    auto &awayTeam = game.getAwayTeam();
+
+    double homeElo = homeTeam.getElo();
+    double awayElo = awayTeam.getElo();
+
+    int homeScore = game.getHomeTeamScore();
+    int awayScore = game.getAwayTeamScore();
+
+    // Calculate the expected probability of home team winning
+    double eloDiff = homeElo - awayElo;
+    double homeWinProbability = 1.0 / (1.0 + std::exp(-eloDiff / 400.0));
+
+    // Determine the actual result
+    double actualResult = (homeScore > awayScore) ? 1.0 : (homeScore < awayScore) ? 0.0
+                                                                                  : 0.5;
+
+    // Calculate forecast delta
+    double forecastDelta = actualResult - homeWinProbability;
+
+    // Calculate margin of victory multiplier
+    double pointDiff = std::abs(homeScore - awayScore);
+    double movMultiplier = std::log(pointDiff + 1) * MOV_MULTIPLIER_BASE;
+
+    // Calculate the Elo adjustment
+    double eloAdjustment = movMultiplier * (eloDiff * MOV_SCALE + MOV_MULTIPLIER_BASE);
+
+    // Adjust Elo ratings
+    double homeEloAdjustment = K * forecastDelta * eloAdjustment;
+    double awayEloAdjustment = -homeEloAdjustment;
+
+    homeElo += homeEloAdjustment;
+    awayElo += awayEloAdjustment;
+
+    // Update team ratings
+    homeTeam.setElo(homeElo);
+    awayTeam.setElo(awayElo);
 }

@@ -17,9 +17,9 @@ public:
     bool operator<(const Game &other) const;
 
     // Getter functions
-    std::string printGame() const;
-    const Team &getHomeTeam() const;
-    const Team &getAwayTeam() const;
+    std::string printGame(const Team &primary) const;
+    Team &getHomeTeam() const;
+    Team &getAwayTeam() const;
 
     bool getIsBye() const;
     bool getIsComplete() const;
@@ -38,8 +38,8 @@ private:
     // Logic functions
     void getHomeOddsStandard();
 
-    const Team &homeTeam;
-    const Team &awayTeam;
+    Team &homeTeam;
+    Team &awayTeam;
     bool isBye = false;
     bool isComplete = false;
     int week;

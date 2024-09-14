@@ -30,23 +30,31 @@ void Game::getHomeOddsStandard()
 {
     // double eloDiff = homeTeam.elo - awayTeam.elo;
 }
-std::string Game::printGame() const
+std::string Game::printGame(const Team &primary) const
 {
     if (isBye)
     {
         return "BYE";
     }
-
-    return awayTeam.getAbbreviation() + "@" + homeTeam.getAbbreviation() +
-           std::to_string(homeTeamScore) + "-" + std::to_string(awayTeamScore) + "|" + std::to_string(homeOdds);
+    if (homeTeam.getName() == primary.getName())
+    {
+        return awayTeam.getAbbreviation() + "|" + std::to_string(homeTeamScore) +
+               "-" + std::to_string(awayTeamScore) + "|" + std::to_string(homeOdds * 100) + "%";
+    }
+    if (awayTeam.getName() == primary.getName())
+    {
+        return "@" + homeTeam.getAbbreviation() + "|" + std::to_string(awayTeamScore) +
+               "-" + std::to_string(homeTeamScore) + "|" + std::to_string((1 - homeOdds) * 100) + "%";
+    }
+    return "Error: game not found";
 }
 
-const Team &Game::getHomeTeam() const
+Team &Game::getHomeTeam() const
 {
     return homeTeam;
 }
 
-const Team &Game::getAwayTeam() const
+Team &Game::getAwayTeam() const
 {
     return awayTeam;
 }
