@@ -9,6 +9,8 @@
 #include <set>
 #include <unordered_map>
 #include <cmath>
+#include <iomanip>
+#include <memory>
 
 #include "Game.h"
 
@@ -22,15 +24,17 @@ public:
     std::vector<std::string> processGameInfo(std::string teamName, std::string gameInfo, int week);
     void readTeams(const std::string &filename);
     void printSchedule() const;
-    void getHomeOddsStandard(const Game &game);
+    void getHomeOddsStandard(Game &game);
+    void processAllGames();
 
 private:
     double calculateDistance(const City &homeCity, const City &awayCity);
     double adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam);
-    double calculateHomeOdds(double elo_diff);
+    double calculateHomeOdds(double eloDiff);
 
     std::vector<std::vector<Game>> NFLSchedule;
-    std::unordered_map<std::string, Team> teamMap;
+    std::unordered_map<std::string, std::shared_ptr<Team>> teamMapByAbbreviation;
+    std::unordered_map<int, std::shared_ptr<Team>> teamMapByIndex;
 };
 
 #endif // NFLSIM_H

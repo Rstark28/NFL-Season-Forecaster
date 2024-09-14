@@ -1,13 +1,13 @@
 #include "Game.h"
 
-Game::Game(std::vector<std::string> tokens, const std::unordered_map<std::string, Team> &teamMap)
-    : homeTeam(teamMap.at(tokens[1])),
-      awayTeam(tokens[2] == "BYE" ? teamMap.at(tokens[1]) : teamMap.at(tokens[2])),
+Game::Game(std::vector<std::string> tokens, const std::unordered_map<std::string, std::shared_ptr<Team>> &teamMapByAbbreviation)
+    : homeTeam(*teamMapByAbbreviation.at(tokens[1])),
+      awayTeam(tokens[2] == "BYE" ? homeTeam : *teamMapByAbbreviation.at(tokens[2])),
       isBye(tokens[2] == "BYE"),
       isComplete(!isBye && tokens[3] == "Y"),
-      week(stoi(tokens[0])),
-      homeTeamScore(!isBye ? stoi(tokens[4]) : 0),
-      awayTeamScore(!isBye ? stoi(tokens[5]) : 0)
+      week(std::stoi(tokens[0])),
+      homeTeamScore(!isBye ? std::stoi(tokens[4]) : 0),
+      awayTeamScore(!isBye ? std::stoi(tokens[5]) : 0)
 {
 }
 
@@ -38,15 +38,15 @@ std::string Game::printGame() const
     }
 
     return awayTeam.getAbbreviation() + "@" + homeTeam.getAbbreviation() +
-           std::to_string(homeTeamScore) + "-" + std::to_string(awayTeamScore);
+           std::to_string(homeTeamScore) + "-" + std::to_string(awayTeamScore) + "|" + std::to_string(homeOdds);
 }
 
-Team Game::getHomeTeam() const
+const Team &Game::getHomeTeam() const
 {
     return homeTeam;
 }
 
-Team Game::getAwayTeam() const
+const Team &Game::getAwayTeam() const
 {
     return awayTeam;
 }
@@ -76,6 +76,11 @@ int Game::getAwayTeamScore() const
     return awayTeamScore;
 }
 
+double Game::getHomeOdds() const
+{
+    return homeOdds;
+}
+
 // Setter functions
 void Game::setHomeTeamScore(int score)
 {
@@ -90,4 +95,9 @@ void Game::setAwayTeamScore(int score)
 void Game::setIsComplete(bool complete)
 {
     isComplete = complete;
+}
+
+void Game::setHomeOdds(double odds)
+{
+    homeOdds = odds;
 }

@@ -2,17 +2,15 @@
 #define GAME_H
 
 #include <string>
-#include <iostream>
 #include <unordered_map>
-#include <sstream>
 #include <vector>
-#include <tuple>
+#include <memory>
 #include "Team.h"
 
 class Game
 {
 public:
-    Game(std::vector<std::string> tokens, const std::unordered_map<std::string, Team> &teamMap);
+    Game(std::vector<std::string> tokens, const std::unordered_map<std::string, std::shared_ptr<Team>> &teamMapByAbbreviation);
     ~Game();
 
     // Game comparator
@@ -20,18 +18,21 @@ public:
 
     // Getter functions
     std::string printGame() const;
-    Team getHomeTeam() const;
-    Team getAwayTeam() const;
+    const Team &getHomeTeam() const;
+    const Team &getAwayTeam() const;
+
     bool getIsBye() const;
     bool getIsComplete() const;
     int getWeek() const;
     int getHomeTeamScore() const;
     int getAwayTeamScore() const;
+    double getHomeOdds() const;
 
     // Setter functions
     void setHomeTeamScore(int score);
     void setAwayTeamScore(int score);
     void setIsComplete(bool complete);
+    void setHomeOdds(double odds);
 
 private:
     // Logic functions
@@ -44,6 +45,7 @@ private:
     int week;
     int homeTeamScore = 0;
     int awayTeamScore = 0;
+    double homeOdds;
 };
 
-#endif
+#endif // GAME_H

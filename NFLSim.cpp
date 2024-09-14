@@ -1,13 +1,35 @@
 #include "NFLSim.h"
 
+/**
+ * func::   NFLSim
+ * param:   filename A string representing the name of the file containing the schedule information.
+ * return:  None
+ * info:    Constructor for the NFLSim class. Initializes the simulation by reading the NFL team data
+ *          from a file and the game schedule from another file. Also processes all games to calculate
+ *          initial odds.
+ */
 NFLSim::NFLSim(const std::string &filename)
 {
     readTeams("nfl_teams.csv");
     readSchedule(filename);
+    processAllGames();
 }
 
+/**
+ * func::   ~NFLSim
+ * param:   None
+ * return:  None
+ * info:    Destructor for the NFLSim class. Cleans up any resources used by the NFLSim class.
+ */
 NFLSim::~NFLSim() {}
 
+/**
+ * func::   readSchedule
+ * param:   filename A string representing the name of the file containing the schedule information.
+ * return:  None
+ * info:    Reads the schedule from the specified file, ensuring that no duplicate games are added
+ *          to the schedule. Each team's schedule is stored in the NFLSchedule member variable.
+ */
 void NFLSim::readSchedule(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -39,14 +61,13 @@ void NFLSim::readSchedule(const std::string &filename)
             std::vector<std::string> tokens = processGameInfo(teamName, gameInfo, week);
 
             // Create a new Game object
-            Game newGame(tokens, teamMap);
+            Game newGame(tokens, teamMapByAbbreviation);
 
             // Insert the newGame into the set and check if it was inserted
             auto result = uniqueGames.insert(newGame);
             if (result.second) // If the game was inserted
             {
                 teamSchedule.push_back(newGame);
-                getHomeOddsStandard(newGame);
             }
             else
             {
@@ -60,9 +81,17 @@ void NFLSim::readSchedule(const std::string &filename)
     file.close();
 }
 
+/**
+ * func::   processGameInfo
+ * param:   teamName A string representing the name of the team.
+ * param:   gameInfo A string containing game information for a specific week.
+ * param:   week An integer representing the week number of the game.
+ * return:  A vector of strings containing processed game information, including week, team names, and game details.
+ * info:    Processes the game information string by extracting relevant details, determining the home and away
+ *          teams, and return:s a vector of strings with the processed game data.
+ */
 std::vector<std::string> NFLSim::processGameInfo(std::string teamName, std::string gameInfo, int week)
 {
-    // Split the gameInfo string by '#' symbols
     std::vector<std::string> tokens;
     std::stringstream ss(gameInfo);
     std::string token;
@@ -85,6 +114,13 @@ std::vector<std::string> NFLSim::processGameInfo(std::string teamName, std::stri
     return tokens;
 }
 
+/**
+ * func::   readTeams
+ * param:   filename A string representing the name of the file containing the team data.
+ * return:  None
+ * info:    Reads the team data from the specified file, creates Team objects, and stores them in both teamMaps
+ *          unordered_map using the team's abbreviation as the key.
+ */
 void NFLSim::readTeams(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -98,12 +134,10 @@ void NFLSim::readTeams(const std::string &filename)
     std::string line;
     std::getline(file, line); // Skip header
 
-    int lineNumber = 0; // Initialize line number to track team idx
+    int lineNumber = 0; // Initialize line number to track team index
 
     while (std::getline(file, line))
     {
-        ++lineNumber;
-
         std::stringstream ss(line);
         std::string teamName, abbreviation, color, city, eloStr, latStr, lonStr;
 
@@ -119,51 +153,68 @@ void NFLSim::readTeams(const std::string &filename)
         double latitude = std::stod(latStr);
         double longitude = std::stod(lonStr);
 
-        // Create a Team object and add it to the unordered_map with team abbreviation as the key
-        teamMap[abbreviation] = Team(teamName, abbreviation, color, elo, city, latitude, longitude, lineNumber);
+        // Create a shared_ptr to a Team object
+        auto team = std::make_shared<Team>(teamName, abbreviation, color, elo, city, latitude, longitude, lineNumber);
+
+        // Add the team to both maps
+        teamMapByAbbreviation[abbreviation] = team;
+        teamMapByIndex[lineNumber] = team;
+
+        ++lineNumber;
     }
 
     file.close();
 }
 
-#include <iomanip> // For std::setw and std::left
-
+/**
+ * func::   printSchedule
+ * param:   None
+ * return:  None
+ * info:    Prints the entire schedule in a formatted manner, ensuring each game is aligned for better readability.
+ */
 void NFLSim::printSchedule() const
 {
-    // Determine the maximum width for the columns
-    size_t maxWidth = 0;
-    for (const auto &team : NFLSchedule)
-    {
-        for (const auto &game : team)
-        {
-            size_t gameLength = game.printGame().length();
-            if (gameLength > maxWidth)
-            {
-                maxWidth = gameLength;
-            }
-        }
-    }
+    // Define column widths for formatting
+    const int teamColumnWidth = 20;
+    const int gameColumnWidth = 30;
 
-    // Add some padding to the maximum width for better readability
-    const size_t padding = 4; // Space between columns
+    std::cout << std::left << std::setw(teamColumnWidth) << "Team" << " | " << "Games" << std::endl;
+    std::cout << std::string(teamColumnWidth + gameColumnWidth + 3, '-') << std::endl;
 
-    // Print the schedule with formatted output
-    for (const auto &team : NFLSchedule)
+    for (int i = 0; i < 32; ++i)
     {
-        for (const auto &game : team)
+        // Retrieve the team from the map using the index
+        auto teamPair = teamMapByIndex.find(i);
+
+        auto team = teamPair->second;
+
+        // Print the team name
+        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | ";
+
+        // Retrieve and print the games for the current team from the schedule
+        const auto &games = NFLSchedule[i];
+
+        for (const auto &game : games)
         {
-            std::cout << std::left << std::setw(maxWidth + padding) << game.printGame();
+            std::cout << game.printGame() << ", ";
         }
+
         std::cout << std::endl;
     }
 }
 
+/**
+ * func::   calculateDistance
+ * param:   homeCity A reference to a City object representing the home team's city.
+ * param:   awayCity A reference to a City object representing the away team's city.
+ * return:  A double representing the distance in miles between the two cities.
+ * info:    Calculates the distance between the home city and the away city using the Haversine formula
+ *          and converts it from meters to miles.
+ */
 double NFLSim::calculateDistance(const City &homeCity, const City &awayCity)
 {
-    // Radius of the Earth in meters
-    constexpr double R = 6378137.0;
+    constexpr double R = 6378137.0; // Radius of the Earth in meters
 
-    // Convert degrees to radians
     auto toRadians = [](double degrees)
     {
         return degrees * M_PI / 180.0;
@@ -174,7 +225,6 @@ double NFLSim::calculateDistance(const City &homeCity, const City &awayCity)
     double lat2 = toRadians(awayCity.latitude);
     double lon2 = toRadians(awayCity.longitude);
 
-    // Haversine formula
     double dLat = lat2 - lat1;
     double dLon = lon2 - lon1;
     double a = std::sin(dLat / 2) * std::sin(dLat / 2) +
@@ -183,38 +233,56 @@ double NFLSim::calculateDistance(const City &homeCity, const City &awayCity)
     double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
     double distance = R * c;
 
-    // Convert distance from meters to miles
-    distance /= 1609.34;
+    distance /= 1609.34; // Convert distance from meters to miles
 
     return distance; // Distance in miles
 }
 
+/**
+ * func::   adjustEloForByes
+ * param:   game A reference to a Game object representing the current game.
+ * param:   homeTeam A reference to a Team object representing the home team.
+ * param:   awayTeam A reference to a Team object representing the away team.
+ * return:  A double representing the adjusted Elo difference accounting for bye weeks.
+ * info:    Adjusts the Elo difference between the home and away teams, factoring in the effects
+ *          of bye weeks on the team's performance.
+ */
 double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam)
 {
     double elo_diff = homeTeam.getElo() - awayTeam.getElo();
 
-    // if (NFLSchedule[homeTeam.getSchedule()][game.getWeek()].getAwayTeam().getName() == "BYE")
-    // {
-    //     elo_diff += 25;
-    // }
-    // if (NFLSchedule[awayTeam.getSchedule()][game.getWeek()].getAwayTeam().getName() == "BYE")
-    // {
-    //     elo_diff -= 25;
-    // }
+    int homeTeamIdx = homeTeam.getSchedule();
+    int awayTeamIdx = awayTeam.getSchedule();
+    int week = game.getWeek();
+    if (NFLSchedule[homeTeamIdx][week].getAwayTeam().getName() == homeTeam.getName())
+    {
+        elo_diff += 25;
+    }
+    if (NFLSchedule[awayTeamIdx][week].getAwayTeam().getName() == awayTeam.getName())
+    {
+        elo_diff -= 25;
+    }
 
     return elo_diff;
 }
 
-double NFLSim::calculateHomeOdds(double elo_diff)
+/**
+ * func::   calculateHomeOdds
+ * param:   eloDiff A double representing the difference in two teams' elos.
+ * return:  A double representing the homeOdds for a game object.
+ * info:    Calculates homeOdds based on eloDiff var.
+ */
+double NFLSim::calculateHomeOdds(double eloDiff)
 {
-    return 1.0 / (1.0 + std::exp(-elo_diff / 400.0));
+    return 1.0 / (1.0 + std::exp(-eloDiff / 400.0));
 }
 
-void NFLSim::getHomeOddsStandard(const Game &game)
+void NFLSim::getHomeOddsStandard(Game &game)
 {
     const Team &homeTeam = game.getHomeTeam();
     const Team &awayTeam = game.getAwayTeam();
 
+    // If bye week skip odds calculation
     if (homeTeam.getName() == awayTeam.getName())
     {
         return;
@@ -226,6 +294,25 @@ void NFLSim::getHomeOddsStandard(const Game &game)
     eloDiff += distanceTraveled / 1000.0; // Convert meters to kilometers if needed
 
     double homeOdds = calculateHomeOdds(eloDiff);
+    game.setHomeOdds(homeOdds);
+}
 
-    std::cout << homeOdds << " - " << homeTeam.getName() << "|" << awayTeam.getName() << std::endl;
+/**
+ * func::   processAllGames
+ * param:   None
+ * return:  None
+ * info:    Calculates homeOdds for all unique game objects.
+ */
+void NFLSim::processAllGames()
+{
+    // Iterate over each week's schedule in NFLSchedule
+    for (auto &weeklySchedule : NFLSchedule)
+    {
+        // Iterate over each game in the weekly schedule
+        for (auto &game : weeklySchedule)
+        {
+            // Call getHomeOddsStandard for each game
+            getHomeOddsStandard(game);
+        }
+    }
 }
