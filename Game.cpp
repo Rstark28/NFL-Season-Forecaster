@@ -89,6 +89,11 @@ double Game::getHomeOdds() const
     return homeOdds;
 }
 
+double Game::getFieldAdvantage() const
+{
+    return fieldAdvantage;
+}
+
 // Setter functions
 void Game::setHomeTeamScore(int score)
 {
@@ -108,4 +113,9 @@ void Game::setIsComplete(bool complete)
 void Game::setHomeOdds(double odds)
 {
     homeOdds = odds;
+}
+
+void Game::setFieldAdvantage(double advantage)
+{
+    fieldAdvantage = advantage;
 }

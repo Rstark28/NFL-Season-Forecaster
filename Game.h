@@ -27,12 +27,14 @@ public:
     int getHomeTeamScore() const;
     int getAwayTeamScore() const;
     double getHomeOdds() const;
+    double getFieldAdvantage() const;
 
     // Setter functions
     void setHomeTeamScore(int score);
     void setAwayTeamScore(int score);
     void setIsComplete(bool complete);
     void setHomeOdds(double odds);
+    void setFieldAdvantage(double advantage);
 
 private:
     // Logic functions
@@ -46,6 +48,7 @@ private:
     int homeTeamScore = 0;
     int awayTeamScore = 0;
     double homeOdds;
+    double fieldAdvantage = -1;
 };
 
 #endif // GAME_H

@@ -10,7 +10,7 @@
  */
 NFLSim::NFLSim(const std::string &filename)
 {
-    readTeams("nfl_teams.csv");
+    readTeams("preseason_nfl_teams.csv");
     readSchedule(filename);
     processAllGames();
     runQueryLoop();
@@ -257,7 +257,7 @@ void NFLSim::printSchedule() const
  * info:    Calculates the distance between the home city and the away city using the Haversine formula
  *          and converts it from meters to miles.
  */
-double NFLSim::calculateDistance(const City &homeCity, const City &awayCity)
+double NFLSim::calculateFieldAdvantage(const City &homeCity, const City &awayCity)
 {
     constexpr double R = 6378137.0; // Radius of the Earth in meters
 
@@ -280,6 +280,8 @@ double NFLSim::calculateDistance(const City &homeCity, const City &awayCity)
     double distance = R * c;
 
     distance /= 1609.34; // Convert distance from meters to miles
+
+    distance = distance / 1000 * 4 + 48; // 4 point advantage for every 1,0000 miles, 48 for home field
 
     return distance; // Distance in miles
 }
@@ -328,7 +330,7 @@ void NFLSim::getHomeOddsStandard(Game &game)
     const Team &homeTeam = game.getHomeTeam();
     const Team &awayTeam = game.getAwayTeam();
 
-    // If bye week skip odds calculation
+    // If bye week, skip odds calculation
     if (homeTeam.getName() == awayTeam.getName())
     {
         return;
@@ -336,8 +338,15 @@ void NFLSim::getHomeOddsStandard(Game &game)
 
     double eloDiff = adjustEloForByes(game, homeTeam, awayTeam);
 
-    double distanceTraveled = calculateDistance(homeTeam.getCity(), awayTeam.getCity());
-    eloDiff += distanceTraveled / 1000.0; // Convert meters to kilometers if needed
+    // If distance hasn't been calculated before, do it; else grab the value
+    if (game.getFieldAdvantage() == -1)
+    {
+        eloDiff += calculateFieldAdvantage(homeTeam.getCity(), awayTeam.getCity());
+    }
+    else
+    {
+        eloDiff += game.getFieldAdvantage();
+    }
 
     double homeOdds = calculateHomeOdds(eloDiff);
     game.setHomeOdds(homeOdds);
@@ -433,7 +442,7 @@ void NFLSim::updateGame()
 
 void NFLSim::updateEloRatings(const Game &game)
 {
-    const double K = 20.0;                  // K-factor
+    const double K = 4.0;                   // K-factor
     const double MOV_MULTIPLIER_BASE = 2.2; // Base for margin-of-victory multiplier
     const double MOV_SCALE = 0.001;         // Scaling factor for Elo difference
 

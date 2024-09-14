@@ -29,7 +29,7 @@ private:
 
     void processAllGames();
     void getHomeOddsStandard(Game &game);
-    double calculateDistance(const City &homeCity, const City &awayCity);
+    double calculateFieldAdvantage(const City &homeCity, const City &awayCity);
     double adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam);
     double calculateHomeOdds(double eloDiff);
 
