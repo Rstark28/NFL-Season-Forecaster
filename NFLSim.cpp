@@ -54,8 +54,7 @@ void NFLSim::runQueryLoop()
         }
         else if (command == "run")
         {
-            // Call method to run the simulation (not implemented)
-            std::cout << "Run simulation functionality is not yet implemented." << std::endl;
+            simRegularSeason();
         }
         else
         {
@@ -84,8 +83,6 @@ void NFLSim::readSchedule(const std::string &filename)
     std::string line;
     std::getline(file, line); // Skip the first line (header)
 
-    std::set<Game> uniqueGames; // Set to track unique games across all teams
-
     // Read each line of the file
     while (std::getline(file, line))
     {
@@ -93,31 +90,37 @@ void NFLSim::readSchedule(const std::string &filename)
         std::string teamName;
         std::getline(ss, teamName, ','); // Read team name
 
-        std::vector<Game> teamSchedule; // Vector to hold games for the team
+        std::vector<std::shared_ptr<Game>> teamSchedule; // Vector to hold game pointers for the team
         std::string gameInfo;
         int week = 0; // Start week counter
 
         // Read each game information for the team
         while (std::getline(ss, gameInfo, ','))
         {
+            // Process the game information and create a new Game object wrapped in a shared_ptr
             std::vector<std::string> tokens = processGameInfo(teamName, gameInfo, week);
+            auto newGame = std::make_shared<Game>(tokens, teamMapByAbbreviation);
 
-            // Create a new Game object
-            Game newGame(tokens, teamMapByAbbreviation);
-
-            // Insert the newGame into the set and check if it was inserted
-            auto result = uniqueGames.insert(newGame);
-            if (result.second) // If the game was inserted
+            // Check if the game object already exists, if it does push existing object again
+            int minScheduleIdx = std::min(newGame->getHomeTeam().getSchedule(), newGame->getAwayTeam().getSchedule());
+            if (minScheduleIdx < NFLSchedule.size())
             {
-                teamSchedule.push_back(newGame);
+                teamSchedule.push_back(NFLSchedule[minScheduleIdx][week]);
             }
             else
             {
-                teamSchedule.push_back(*result.first); // Use the existing game
+                teamSchedule.push_back(newGame);
+                // Update Elos if game was completed in csv file
+                if (newGame->getIsComplete())
+                {
+                    updateEloRatings(newGame);
+                }
             }
+
             ++week; // Move to the next week
         }
-        NFLSchedule.push_back(teamSchedule);
+
+        NFLSchedule.push_back(teamSchedule); // Add the team's schedule to NFLSchedule
     }
 
     file.close();
@@ -241,7 +244,7 @@ void NFLSim::printSchedule() const
         for (const auto &game : games)
         {
             std::cout << std::left << std::setw(teamColumnWidth) << ("Week " + std::to_string(weekIndex))
-                      << " | " << std::setw(gameColumnWidth) << game.printGame(*team) << std::endl;
+                      << " | " << std::setw(gameColumnWidth) << game->printGame(*team) << std::endl;
             ++weekIndex;
         }
 
@@ -302,11 +305,11 @@ double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Te
     int homeTeamIdx = homeTeam.getSchedule();
     int awayTeamIdx = awayTeam.getSchedule();
     int week = game.getWeek();
-    if (NFLSchedule[homeTeamIdx][week].getAwayTeam().getName() == homeTeam.getName())
+    if (NFLSchedule[homeTeamIdx][week]->getAwayTeam().getName() == homeTeam.getName())
     {
         elo_diff += 25;
     }
-    if (NFLSchedule[awayTeamIdx][week].getAwayTeam().getName() == awayTeam.getName())
+    if (NFLSchedule[awayTeamIdx][week]->getAwayTeam().getName() == awayTeam.getName())
     {
         elo_diff -= 25;
     }
@@ -325,10 +328,10 @@ double NFLSim::calculateHomeOdds(double eloDiff)
     return 1.0 / (1.0 + std::exp(-eloDiff / 400.0));
 }
 
-void NFLSim::getHomeOddsStandard(Game &game)
+void NFLSim::getHomeOddsStandard(std::shared_ptr<Game> &game)
 {
-    const Team &homeTeam = game.getHomeTeam();
-    const Team &awayTeam = game.getAwayTeam();
+    const Team &homeTeam = game->getHomeTeam();
+    const Team &awayTeam = game->getAwayTeam();
 
     // If bye week, skip odds calculation
     if (homeTeam.getName() == awayTeam.getName())
@@ -336,20 +339,22 @@ void NFLSim::getHomeOddsStandard(Game &game)
         return;
     }
 
-    double eloDiff = adjustEloForByes(game, homeTeam, awayTeam);
+    double eloDiff = adjustEloForByes(*game, homeTeam, awayTeam);
 
     // If distance hasn't been calculated before, do it; else grab the value
-    if (game.getFieldAdvantage() == -1)
+    if (game->getFieldAdvantage() == -1)
     {
-        eloDiff += calculateFieldAdvantage(homeTeam.getCity(), awayTeam.getCity());
+        double fieldAdvantage = calculateFieldAdvantage(homeTeam.getCity(), awayTeam.getCity());
+        game->setFieldAdvantage(fieldAdvantage);
+        eloDiff += fieldAdvantage;
     }
     else
     {
-        eloDiff += game.getFieldAdvantage();
+        eloDiff += game->getFieldAdvantage();
     }
 
     double homeOdds = calculateHomeOdds(eloDiff);
-    game.setHomeOdds(homeOdds);
+    game->setHomeOdds(homeOdds);
 }
 
 /**
@@ -364,13 +369,29 @@ void NFLSim::processAllGames()
     for (auto &weeklySchedule : NFLSchedule)
     {
         // Iterate over each game in the weekly schedule
-        for (auto &game : weeklySchedule)
+        for (auto &gamePtr : weeklySchedule)
         {
-            // Call getHomeOddsStandard for each game
-            if (!game.getIsComplete())
+            // Call getHomeOddsStandard for each game that is not complete
+            if (!gamePtr->getIsComplete())
             {
-                getHomeOddsStandard(game);
+                getHomeOddsStandard(gamePtr); // Dereference shared_ptr to pass the object
             }
+        }
+    }
+}
+
+void NFLSim::processTeamGames(int teamIndex)
+{
+    // Get the specific team's weekly schedule using the provided index
+    auto &weeklySchedule = NFLSchedule[teamIndex];
+
+    // Iterate over each game in the team's weekly schedule
+    for (auto &gamePtr : weeklySchedule)
+    {
+        // Call getHomeOddsStandard for each game that is not complete
+        if (!gamePtr->getIsComplete())
+        {
+            getHomeOddsStandard(gamePtr); // Dereference shared_ptr to pass the object
         }
     }
 }
@@ -430,21 +451,33 @@ void NFLSim::updateGame()
     }
 
     // Retrieve the game and update the scores
-    Game &game = NFLSchedule[scheduleIdx][week];
+    auto &gamePtr = NFLSchedule[scheduleIdx][week]; // std::shared_ptr<Game>
+    auto &game = *gamePtr;                          // Dereference to get Game&
+
+    // If game outcome has already been set, reset changes
+    if (game.getEloEffect() != 0)
+    {
+        double eloChange = game.getEloEffect();
+        game.getHomeTeam().updateElo(-eloChange);
+        game.getAwayTeam().updateElo(eloChange);
+    }
     game.setHomeTeamScore(homeScore);
     game.setAwayTeamScore(awayScore);
     game.setIsComplete(true);
-    updateEloRatings(game);
-    processAllGames();
+    updateEloRatings(gamePtr); // Pass shared_ptr<Game>
+    processTeamGames(game.getHomeTeam().getSchedule());
+    processTeamGames(game.getAwayTeam().getSchedule());
 
     std::cout << "Game and elo updated." << std::endl;
 }
 
-void NFLSim::updateEloRatings(const Game &game)
+void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
 {
     const double K = 4.0;                   // K-factor
     const double MOV_MULTIPLIER_BASE = 2.2; // Base for margin-of-victory multiplier
     const double MOV_SCALE = 0.001;         // Scaling factor for Elo difference
+
+    auto &game = *gamePtr; // Dereference to get Game&
 
     // Get home and away teams
     auto &homeTeam = game.getHomeTeam();
@@ -482,6 +515,53 @@ void NFLSim::updateEloRatings(const Game &game)
     awayElo += awayEloAdjustment;
 
     // Update team ratings
-    homeTeam.setElo(homeElo);
-    awayTeam.setElo(awayElo);
+    homeTeam.updateElo(homeEloAdjustment);
+    awayTeam.updateElo(awayEloAdjustment);
+    game.setEloEffect(homeEloAdjustment);
+}
+
+void NFLSim::simRegularSeason()
+{
+    // Initialize the random number generator
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+
+    // Iterate through each week (outer vector)
+    for (auto &weeklyGames : NFLSchedule)
+    {
+        // Iterate through each game in the week (inner vector)
+        for (auto &game : weeklyGames)
+        {
+            // Check if the game is already complete, skip if true
+            if (game->getIsComplete())
+            {
+                continue;
+            }
+
+            // Generate a random float between 0 and 1
+            float randNum = static_cast<float>(std::rand()) / RAND_MAX;
+
+            // Using average scores during 2023 as placeholder
+            int winningScore = 28, losingScore = 16;
+
+            // Compare the random number with the home team's odds
+            if (randNum > game->getHomeOdds())
+            {
+                // If random number is greater than home odds, away team wins
+                game->setAwayTeamScore(winningScore);
+                game->setHomeTeamScore(losingScore);
+            }
+            else
+            {
+                // Else, home team wins
+                game->setHomeTeamScore(winningScore);
+                game->setAwayTeamScore(losingScore);
+            }
+
+            // Mark the game as complete and update Elo ratings
+            game->setIsComplete(true);
+            updateEloRatings(game);
+            processTeamGames(game->getHomeTeam().getSchedule());
+            processTeamGames(game->getAwayTeam().getSchedule());
+        }
+    }
 }

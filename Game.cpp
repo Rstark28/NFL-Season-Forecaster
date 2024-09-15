@@ -4,7 +4,7 @@ Game::Game(std::vector<std::string> tokens, const std::unordered_map<std::string
     : homeTeam(*teamMapByAbbreviation.at(tokens[1])),
       awayTeam(tokens[2] == "BYE" ? homeTeam : *teamMapByAbbreviation.at(tokens[2])),
       isBye(tokens[2] == "BYE"),
-      isComplete(!isBye && tokens[3] == "Y"),
+      isComplete(isBye or tokens[3] == "Y"),
       week(std::stoi(tokens[0])),
       homeTeamScore(!isBye ? std::stoi(tokens[4]) : 0),
       awayTeamScore(!isBye ? std::stoi(tokens[5]) : 0)
@@ -15,21 +15,6 @@ Game::~Game()
 {
 }
 
-bool Game::operator<(const Game &other) const
-{
-    std::string homeName = homeTeam.getName();
-    std::string awayName = awayTeam.getName();
-    std::string otherHomeName = other.homeTeam.getName();
-    std::string otherAwayName = other.awayTeam.getName();
-
-    return std::tie(week, homeName, awayName) <
-           std::tie(other.week, otherHomeName, otherAwayName);
-}
-
-void Game::getHomeOddsStandard()
-{
-    // double eloDiff = homeTeam.elo - awayTeam.elo;
-}
 std::string Game::printGame(const Team &primary) const
 {
     if (isBye)
@@ -94,6 +79,11 @@ double Game::getFieldAdvantage() const
     return fieldAdvantage;
 }
 
+double Game::getEloEffect() const
+{
+    return eloEffect;
+}
+
 // Setter functions
 void Game::setHomeTeamScore(int score)
 {
@@ -118,4 +108,9 @@ void Game::setHomeOdds(double odds)
 void Game::setFieldAdvantage(double advantage)
 {
     fieldAdvantage = advantage;
+}
+
+void Game::setEloEffect(double eloChange)
+{
+    eloEffect = eloChange;
 }

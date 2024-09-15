@@ -33,7 +33,7 @@ public:
     int getSchedule() const;
 
     // Setter functions
-    void setElo(double newElo);
+    void updateElo(double eloChange);
 
 private:
     std::string name;

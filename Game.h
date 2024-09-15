@@ -13,9 +13,6 @@ public:
     Game(std::vector<std::string> tokens, const std::unordered_map<std::string, std::shared_ptr<Team>> &teamMapByAbbreviation);
     ~Game();
 
-    // Game comparator
-    bool operator<(const Game &other) const;
-
     // Getter functions
     std::string printGame(const Team &primary) const;
     Team &getHomeTeam() const;
@@ -28,6 +25,7 @@ public:
     int getAwayTeamScore() const;
     double getHomeOdds() const;
     double getFieldAdvantage() const;
+    double getEloEffect() const;
 
     // Setter functions
     void setHomeTeamScore(int score);
@@ -35,11 +33,9 @@ public:
     void setIsComplete(bool complete);
     void setHomeOdds(double odds);
     void setFieldAdvantage(double advantage);
+    void setEloEffect(double eloChange);
 
 private:
-    // Logic functions
-    void getHomeOddsStandard();
-
     Team &homeTeam;
     Team &awayTeam;
     bool isBye = false;
@@ -49,6 +45,7 @@ private:
     int awayTeamScore = 0;
     double homeOdds;
     double fieldAdvantage = -1;
+    double eloEffect = 0;
 };
 
 #endif // GAME_H
