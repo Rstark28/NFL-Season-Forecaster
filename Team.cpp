@@ -54,7 +54,27 @@ int Team::getSchedule() const
     return scheduleIdx;
 }
 
+float Team::getWinCount() const
+{
+    return winCount;
+}
+
 void Team::updateElo(double eloChange)
 {
     elo += eloChange;
+}
+
+void Team::updateWinCount(float result)
+{
+    winCount += result;
+}
+
+void Team::addLoss(const std::shared_ptr<Team> &opponent, int pointDifferential)
+{
+    teamsLostTo[opponent] = pointDifferential;
+}
+
+const std::map<std::shared_ptr<Team>, int> &Team::getTeamsLostTo() const
+{
+    return teamsLostTo;
 }

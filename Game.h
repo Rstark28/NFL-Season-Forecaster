@@ -14,9 +14,9 @@ public:
     ~Game();
 
     // Getter functions
-    std::string printGame(const Team &primary) const;
-    Team &getHomeTeam() const;
-    Team &getAwayTeam() const;
+    std::string printGame(const std::shared_ptr<Team> &primary) const;
+    std::shared_ptr<Team> getHomeTeam() const;
+    std::shared_ptr<Team> getAwayTeam() const;
 
     bool getIsBye() const;
     bool getIsComplete() const;
@@ -36,8 +36,8 @@ public:
     void setEloEffect(double eloChange);
 
 private:
-    Team &homeTeam;
-    Team &awayTeam;
+    std::shared_ptr<Team> homeTeam;
+    std::shared_ptr<Team> awayTeam;
     bool isBye = false;
     bool isComplete = false;
     int week;

@@ -102,7 +102,7 @@ void NFLSim::readSchedule(const std::string &filename)
             auto newGame = std::make_shared<Game>(tokens, teamMapByAbbreviation);
 
             // Check if the game object already exists, if it does push existing object again
-            int minScheduleIdx = std::min(newGame->getHomeTeam().getSchedule(), newGame->getAwayTeam().getSchedule());
+            int minScheduleIdx = std::min(newGame->getHomeTeam()->getSchedule(), newGame->getAwayTeam()->getSchedule());
             if (minScheduleIdx < NFLSchedule.size())
             {
                 teamSchedule.push_back(NFLSchedule[minScheduleIdx][week]);
@@ -184,8 +184,9 @@ void NFLSim::readTeams(const std::string &filename)
     while (std::getline(file, line))
     {
         std::stringstream ss(line);
-        std::string teamName, abbreviation, color, city, eloStr, latStr, lonStr;
+        std::string teamName, abbreviation, color, city, eloStr, latStr, lonStr, conference, division;
 
+        // Read each field from the CSV file
         std::getline(ss, teamName, ',');
         std::getline(ss, abbreviation, ',');
         std::getline(ss, color, ',');
@@ -193,6 +194,8 @@ void NFLSim::readTeams(const std::string &filename)
         std::getline(ss, city, ',');
         std::getline(ss, latStr, ',');
         std::getline(ss, lonStr, ',');
+        std::getline(ss, conference, ','); // Ensure these fields are present in the file
+        std::getline(ss, division, ',');   // Ensure these fields are present in the file
 
         double elo = std::stod(eloStr);
         double latitude = std::stod(latStr);
@@ -204,6 +207,9 @@ void NFLSim::readTeams(const std::string &filename)
         // Add the team to both maps
         teamMapByAbbreviation[abbreviation] = team;
         teamMapByIndex[lineNumber] = team;
+
+        // Add the team to the league structure by conference and division
+        leagueStructure[conference][division].push_back(team); // This is where segmentation happens
 
         ++lineNumber;
     }
@@ -233,7 +239,7 @@ void NFLSim::printSchedule() const
         auto team = teamMapByIndex.at(i);
 
         // Print the team name
-        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getElo() << std::endl;
+        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getElo() << " | Wins: " << team->getWinCount() << std::endl;
         std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 
         // Retrieve and print the games for the current team from the schedule
@@ -244,11 +250,56 @@ void NFLSim::printSchedule() const
         for (const auto &game : games)
         {
             std::cout << std::left << std::setw(teamColumnWidth) << ("Week " + std::to_string(weekIndex))
-                      << " | " << std::setw(gameColumnWidth) << game->printGame(*team) << std::endl;
+                      << " | " << std::setw(gameColumnWidth) << game->printGame(team) << std::endl;
             ++weekIndex;
         }
 
         std::cout << std::endl;
+    }
+}
+
+void NFLSim::printLeagueStructure() const
+{
+    for (const auto &conferencePair : leagueStructure)
+    {
+        const std::string &conference = conferencePair.first;
+        std::cout << "Conference: " << conference << "\n";
+
+        for (const auto &divisionPair : conferencePair.second)
+        {
+            const std::string &division = divisionPair.first;
+            std::cout << "  Division: " << division << "\n";
+
+            for (const auto &team : divisionPair.second)
+            {
+                std::cout << "    Team: " << team->getName() << " ("
+                          << team->getAbbreviation() << "), Elo: "
+                          << team->getWinCount() << "\n";
+            }
+        }
+    }
+}
+
+void NFLSim::printPlayoffs() const
+{
+    std::cout << "Playoff Seeding:\n";
+
+    // Iterate through each conference in the playoff seeding
+    for (const auto &conferencePair : playoffSeeding)
+    {
+        const std::string &conference = conferencePair.first;
+        const std::vector<std::shared_ptr<Team>> &teams = conferencePair.second;
+
+        std::cout << "Conference: " << conference << "\n";
+
+        // Print the teams in the playoff seeding
+        for (size_t i = 0; i < teams.size(); ++i)
+        {
+            std::cout << "  Seed " << (i + 1) << ": "
+                      << teams[i]->getName() << " ("
+                      << teams[i]->getAbbreviation() << "), Win Count: "
+                      << teams[i]->getWinCount() << "\n";
+        }
     }
 }
 
@@ -305,11 +356,11 @@ double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Te
     int homeTeamIdx = homeTeam.getSchedule();
     int awayTeamIdx = awayTeam.getSchedule();
     int week = game.getWeek();
-    if (NFLSchedule[homeTeamIdx][week]->getAwayTeam().getName() == homeTeam.getName())
+    if (NFLSchedule[homeTeamIdx][week]->getAwayTeam()->getName() == homeTeam.getName())
     {
         elo_diff += 25;
     }
-    if (NFLSchedule[awayTeamIdx][week]->getAwayTeam().getName() == awayTeam.getName())
+    if (NFLSchedule[awayTeamIdx][week]->getAwayTeam()->getName() == awayTeam.getName())
     {
         elo_diff -= 25;
     }
@@ -330,21 +381,22 @@ double NFLSim::calculateHomeOdds(double eloDiff)
 
 void NFLSim::getHomeOddsStandard(std::shared_ptr<Game> &game)
 {
-    const Team &homeTeam = game->getHomeTeam();
-    const Team &awayTeam = game->getAwayTeam();
+    // Access the home and away teams via shared pointers
+    auto homeTeam = game->getHomeTeam();
+    auto awayTeam = game->getAwayTeam();
 
     // If bye week, skip odds calculation
-    if (homeTeam.getName() == awayTeam.getName())
+    if (homeTeam->getName() == awayTeam->getName())
     {
         return;
     }
 
-    double eloDiff = adjustEloForByes(*game, homeTeam, awayTeam);
+    double eloDiff = adjustEloForByes(*game, *homeTeam, *awayTeam);
 
     // If distance hasn't been calculated before, do it; else grab the value
     if (game->getFieldAdvantage() == -1)
     {
-        double fieldAdvantage = calculateFieldAdvantage(homeTeam.getCity(), awayTeam.getCity());
+        double fieldAdvantage = calculateFieldAdvantage(homeTeam->getCity(), awayTeam->getCity());
         game->setFieldAdvantage(fieldAdvantage);
         eloDiff += fieldAdvantage;
     }
@@ -458,17 +510,44 @@ void NFLSim::updateGame()
     if (game.getEloEffect() != 0)
     {
         double eloChange = game.getEloEffect();
-        game.getHomeTeam().updateElo(-eloChange);
-        game.getAwayTeam().updateElo(eloChange);
+        game.getHomeTeam()->updateElo(-eloChange);
+        game.getAwayTeam()->updateElo(eloChange);
     }
+
+    // Set game scores
     game.setHomeTeamScore(homeScore);
     game.setAwayTeamScore(awayScore);
     game.setIsComplete(true);
-    updateEloRatings(gamePtr); // Pass shared_ptr<Game>
-    processTeamGames(game.getHomeTeam().getSchedule());
-    processTeamGames(game.getAwayTeam().getSchedule());
 
-    std::cout << "Game and elo updated." << std::endl;
+    // Check for tie
+    if (homeScore == awayScore)
+    {
+        // Handle a tie game
+        game.getHomeTeam()->updateWinCount(0.5);
+        game.getAwayTeam()->updateWinCount(0.5);
+    }
+    else
+    {
+        // Handle normal win/loss outcome
+        updateEloRatings(gamePtr);
+
+        if (homeScore > awayScore)
+        {
+            game.getHomeTeam()->updateWinCount(1);
+            game.getAwayTeam()->addLoss(game.getHomeTeam(), homeScore - awayScore);
+        }
+        else
+        {
+            game.getAwayTeam()->updateWinCount(1);
+            game.getHomeTeam()->addLoss(game.getAwayTeam(), awayScore - homeScore);
+        }
+    }
+
+    // Process games for both teams after the update
+    processTeamGames(game.getHomeTeam()->getSchedule());
+    processTeamGames(game.getAwayTeam()->getSchedule());
+
+    std::cout << "Game and Elo updated." << std::endl;
 }
 
 void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
@@ -477,11 +556,22 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
     const double MOV_MULTIPLIER_BASE = 2.2; // Base for margin-of-victory multiplier
     const double MOV_SCALE = 0.001;         // Scaling factor for Elo difference
 
-    auto &game = *gamePtr; // Dereference to get Game&
+    // Dereference to get Game&
+    auto &game = *gamePtr;
 
     // Get home and away teams
-    auto &homeTeam = game.getHomeTeam();
-    auto &awayTeam = game.getAwayTeam();
+    auto homeTeamPtr = game.getHomeTeam();
+    auto awayTeamPtr = game.getAwayTeam();
+
+    if (!homeTeamPtr || !awayTeamPtr)
+    {
+        std::cerr << "Error: Null pointer for home or away team." << std::endl;
+        return;
+    }
+
+    // Access the Team objects through the shared pointers
+    auto &homeTeam = *homeTeamPtr;
+    auto &awayTeam = *awayTeamPtr;
 
     double homeElo = homeTeam.getElo();
     double awayElo = awayTeam.getElo();
@@ -517,6 +607,8 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
     // Update team ratings
     homeTeam.updateElo(homeEloAdjustment);
     awayTeam.updateElo(awayEloAdjustment);
+
+    // Set the Elo effect for the game
     game.setEloEffect(homeEloAdjustment);
 }
 
@@ -525,43 +617,255 @@ void NFLSim::simRegularSeason()
     // Initialize the random number generator
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
-    // Iterate through each week (outer vector)
-    for (auto &weeklyGames : NFLSchedule)
+    // Iterate through each week
+    for (const auto &weeklyGames : NFLSchedule)
     {
-        // Iterate through each game in the week (inner vector)
-        for (auto &game : weeklyGames)
+        // Iterate through each game in the week
+        for (const auto &game : weeklyGames)
         {
-            // Check if the game is already complete, skip if true
+            // Skip if the game is already complete
             if (game->getIsComplete())
-            {
                 continue;
-            }
 
             // Generate a random float between 0 and 1
             float randNum = static_cast<float>(std::rand()) / RAND_MAX;
 
-            // Using average scores during 2023 as placeholder
-            int winningScore = 28, losingScore = 16;
+            // Generate scores using a log-linear distribution
+            int score1 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+            int score2 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
 
-            // Compare the random number with the home team's odds
-            if (randNum > game->getHomeOdds())
+            int winningScore, losingScore;
+            std::shared_ptr<Team> winningTeam, losingTeam;
+
+            // Determine if the game ends in a tie
+            if (randNum < 0.01f)
             {
-                // If random number is greater than home odds, away team wins
-                game->setAwayTeamScore(winningScore);
-                game->setHomeTeamScore(losingScore);
+                game->setHomeTeamScore(score1);
+                game->setAwayTeamScore(score1); // Both teams get the same score
+                game->getHomeTeam()->updateWinCount(0.5);
+                game->getAwayTeam()->updateWinCount(0.5);
             }
             else
             {
-                // Else, home team wins
-                game->setHomeTeamScore(winningScore);
-                game->setAwayTeamScore(losingScore);
+                // Ensure that one score is higher than the other
+                winningScore = std::max(score1, score2);
+                losingScore = std::min(score1, score2);
+                if (winningScore == losingScore)
+                    winningScore++; // Avoid ties unless specified
+
+                // Determine the winning and losing team
+                if (randNum > game->getHomeOdds())
+                {
+                    game->setAwayTeamScore(winningScore);
+                    game->setHomeTeamScore(losingScore);
+                    winningTeam = game->getAwayTeam();
+                    losingTeam = game->getHomeTeam();
+                    winningTeam->updateWinCount(1);
+                }
+                else
+                {
+                    game->setHomeTeamScore(winningScore);
+                    game->setAwayTeamScore(losingScore);
+                    winningTeam = game->getHomeTeam();
+                    losingTeam = game->getAwayTeam();
+                    winningTeam->updateWinCount(1);
+                }
             }
 
             // Mark the game as complete and update Elo ratings
             game->setIsComplete(true);
             updateEloRatings(game);
-            processTeamGames(game->getHomeTeam().getSchedule());
-            processTeamGames(game->getAwayTeam().getSchedule());
+
+            // Process games for each team
+            processTeamGames(game->getHomeTeam()->getSchedule());
+            processTeamGames(game->getAwayTeam()->getSchedule());
+
+            // Record the loss for the losing team
+            if (winningTeam && losingTeam)
+            {
+                int pointDifferential = winningScore - losingScore;
+                losingTeam->addLoss(winningTeam, pointDifferential);
+            }
         }
     }
+
+    // Determine division winners and print league structure
+    getDivisionWinners();
+    getWildCard();
+    printPlayoffs();
+}
+
+void NFLSim::getDivisionWinners()
+{
+    // Data structure to store the top teams from each division for each conference
+    std::map<std::string, std::vector<std::shared_ptr<Team>>> conferenceTeams;
+    playoffSeeding.clear(); // Clear previous playoff seeding
+
+    // Iterate through each conference
+    for (const auto &conferencePair : leagueStructure)
+    {
+        const std::string &conference = conferencePair.first;
+
+        // Vector to store top teams of this conference
+        std::vector<std::shared_ptr<Team>> topTeams;
+
+        // Iterate through each division in the conference
+        for (const auto &divisionPair : conferencePair.second)
+        {
+            const std::vector<std::shared_ptr<Team>> &teams = divisionPair.second;
+
+            // Create a copy of the teams vector and sort it by win count
+            std::vector<std::shared_ptr<Team>> sortedTeams = teams;
+            std::sort(sortedTeams.begin(), sortedTeams.end(),
+                      [](const std::shared_ptr<Team> &a, const std::shared_ptr<Team> &b)
+                      {
+                          return a->getWinCount() > b->getWinCount();
+                      });
+
+            // Handle ties within the division
+            if (sortedTeams.size() > 1)
+            {
+                std::vector<std::shared_ptr<Team>> topTeamsInDivision;
+
+                // Compare top teams to resolve any ties
+                for (size_t i = 0; i < sortedTeams.size(); ++i)
+                {
+                    for (size_t j = i + 1; j < sortedTeams.size(); ++j)
+                    {
+                        if (sortedTeams[i]->getWinCount() == sortedTeams[j]->getWinCount())
+                        {
+                            // Resolve tiebreaker between these two teams
+                            auto winner = resolveTiebreaker(sortedTeams[i], sortedTeams[j]);
+                            if (winner == sortedTeams[i])
+                            {
+                                topTeamsInDivision.push_back(sortedTeams[i]);
+                            }
+                            else
+                            {
+                                topTeamsInDivision.push_back(sortedTeams[j]);
+                            }
+                        }
+                        else
+                        {
+                            topTeamsInDivision.push_back(sortedTeams[i]);
+                            break; // Break once a non-tied team is added
+                        }
+                    }
+                }
+
+                // Ensure the top team of this division is unique
+                if (!topTeamsInDivision.empty())
+                {
+                    topTeams.push_back(topTeamsInDivision.front());
+                }
+            }
+            else if (!sortedTeams.empty())
+            {
+                // If no ties, just add the top team directly
+                topTeams.push_back(sortedTeams.front());
+            }
+        }
+
+        // Sort the top teams by win count
+        std::sort(topTeams.begin(), topTeams.end(),
+                  [](const std::shared_ptr<Team> &a, const std::shared_ptr<Team> &b)
+                  {
+                      return a->getWinCount() > b->getWinCount();
+                  });
+
+        // Store the sorted top teams for this conference
+        conferenceTeams[conference] = topTeams;
+
+        // Add division winners to playoff seeding
+        if (conferenceTeams[conference].size() > 0)
+        {
+            playoffSeeding[conference] = conferenceTeams[conference]; // Add to playoff seeding
+        }
+    }
+}
+
+void NFLSim::getWildCard()
+{
+    // Data structure to store wildcard teams for each conference
+    std::map<std::string, std::vector<std::shared_ptr<Team>>> wildcardTeams;
+
+    // Clear the existing playoff seeding to prepare for wildcards
+    for (auto &conferencePair : playoffSeeding)
+    {
+        const std::string &conference = conferencePair.first;
+        auto &divisionWinners = conferencePair.second;
+
+        // Get all teams excluding division winners
+        std::vector<std::shared_ptr<Team>> nonPlayoffTeams;
+        for (const auto &divisionPair : leagueStructure[conference])
+        {
+            for (const auto &team : divisionPair.second)
+            {
+                if (std::find(divisionWinners.begin(), divisionWinners.end(), team) == divisionWinners.end())
+                {
+                    nonPlayoffTeams.push_back(team);
+                }
+            }
+        }
+
+        // Sort non-playoff teams by win count
+        std::sort(nonPlayoffTeams.begin(), nonPlayoffTeams.end(),
+                  [](const std::shared_ptr<Team> &a, const std::shared_ptr<Team> &b)
+                  {
+                      return a->getWinCount() > b->getWinCount();
+                  });
+
+        // Select top 3 teams for wildcard spots
+        std::vector<std::shared_ptr<Team>> topWildCardTeams;
+        for (size_t i = 0; i < 3 && i < nonPlayoffTeams.size(); ++i)
+        {
+            topWildCardTeams.push_back(nonPlayoffTeams[i]);
+        }
+
+        // Store wildcard teams for this conference
+        wildcardTeams[conference] = topWildCardTeams;
+
+        // Add wildcard teams to playoff seeding
+        playoffSeeding[conference].insert(playoffSeeding[conference].end(),
+                                          topWildCardTeams.begin(), topWildCardTeams.end());
+    }
+}
+
+std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &team1,
+                                                const std::shared_ptr<Team> &team2)
+{
+    auto team1LostTo = team1->getTeamsLostTo();
+    auto team2LostTo = team2->getTeamsLostTo();
+
+    // Seed the random number generator if not already seeded
+    static bool seeded = false;
+    if (!seeded)
+    {
+        std::srand(static_cast<unsigned int>(std::time(nullptr)));
+        seeded = true;
+    }
+
+    // Check if both teams have played each other
+    auto team1LostToTeam2 = team1LostTo.find(team2);
+    auto team2LostToTeam1 = team2LostTo.find(team1);
+
+    if (team1LostToTeam2 != team1LostTo.end() &&
+        team2LostToTeam1 != team2LostTo.end())
+    {
+        int team1PointDifferential = team1LostToTeam2->second;
+        int team2PointDifferential = team2LostToTeam1->second;
+
+        // The team that lost by less (i.e., had a smaller point differential) wins
+        if (team1PointDifferential < team2PointDifferential)
+        {
+            return team1;
+        }
+        else if (team2PointDifferential < team1PointDifferential)
+        {
+            return team2;
+        }
+    }
+
+    // If the teams have not played each other or point differentials are the same, return a random choice
+    return (std::rand() % 2 == 0) ? team1 : team2;
 }

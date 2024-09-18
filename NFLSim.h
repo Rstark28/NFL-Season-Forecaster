@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <map>
 #include <unordered_map>
 #include <cmath>
 #include <iomanip>
@@ -28,8 +29,14 @@ private:
     std::vector<std::string> processGameInfo(std::string teamName, std::string gameInfo, int week);
     void readTeams(const std::string &filename);
     void printSchedule() const;
+    void printLeagueStructure() const;
+    void printPlayoffs() const;
 
     void simRegularSeason();
+    void getDivisionWinners();
+    void getWildCard();
+    std::shared_ptr<Team> resolveTiebreaker(const std::shared_ptr<Team> &team1,
+                                            const std::shared_ptr<Team> &team2);
 
     void processAllGames();
     void processTeamGames(int teamIndex);
@@ -44,6 +51,8 @@ private:
     std::vector<std::vector<std::shared_ptr<Game>>> NFLSchedule;
     std::unordered_map<std::string, std::shared_ptr<Team>> teamMapByAbbreviation;
     std::unordered_map<int, std::shared_ptr<Team>> teamMapByIndex;
+    std::map<std::string, std::map<std::string, std::vector<std::shared_ptr<Team>>>> leagueStructure;
+    std::map<std::string, std::vector<std::shared_ptr<Team>>> playoffSeeding;
 };
 
 #endif // NFLSIM_H

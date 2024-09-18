@@ -1,10 +1,10 @@
 #include "Game.h"
 
 Game::Game(std::vector<std::string> tokens, const std::unordered_map<std::string, std::shared_ptr<Team>> &teamMapByAbbreviation)
-    : homeTeam(*teamMapByAbbreviation.at(tokens[1])),
-      awayTeam(tokens[2] == "BYE" ? homeTeam : *teamMapByAbbreviation.at(tokens[2])),
+    : homeTeam(teamMapByAbbreviation.at(tokens[1])),
+      awayTeam(tokens[2] == "BYE" ? homeTeam : teamMapByAbbreviation.at(tokens[2])),
       isBye(tokens[2] == "BYE"),
-      isComplete(isBye or tokens[3] == "Y"),
+      isComplete(isBye || tokens[3] == "Y"),
       week(std::stoi(tokens[0])),
       homeTeamScore(!isBye ? std::stoi(tokens[4]) : 0),
       awayTeamScore(!isBye ? std::stoi(tokens[5]) : 0)
@@ -15,31 +15,31 @@ Game::~Game()
 {
 }
 
-std::string Game::printGame(const Team &primary) const
+std::string Game::printGame(const std::shared_ptr<Team> &primary) const
 {
     if (isBye)
     {
         return "BYE";
     }
-    if (homeTeam.getName() == primary.getName())
+    if (homeTeam->getName() == primary->getName())
     {
-        return awayTeam.getAbbreviation() + "|" + std::to_string(homeTeamScore) +
+        return awayTeam->getAbbreviation() + "|" + std::to_string(homeTeamScore) +
                "-" + std::to_string(awayTeamScore) + "|" + std::to_string(homeOdds * 100) + "%";
     }
-    if (awayTeam.getName() == primary.getName())
+    if (awayTeam->getName() == primary->getName())
     {
-        return "@" + homeTeam.getAbbreviation() + "|" + std::to_string(awayTeamScore) +
+        return "@" + homeTeam->getAbbreviation() + "|" + std::to_string(awayTeamScore) +
                "-" + std::to_string(homeTeamScore) + "|" + std::to_string((1 - homeOdds) * 100) + "%";
     }
     return "Error: game not found";
 }
 
-Team &Game::getHomeTeam() const
+std::shared_ptr<Team> Game::getHomeTeam() const
 {
     return homeTeam;
 }
 
-Team &Game::getAwayTeam() const
+std::shared_ptr<Team> Game::getAwayTeam() const
 {
     return awayTeam;
 }

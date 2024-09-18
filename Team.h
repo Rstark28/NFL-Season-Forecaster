@@ -4,6 +4,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <map>
+#include <memory> // for std::shared_ptr
 
 struct City
 {
@@ -31,9 +33,15 @@ public:
     double getElo() const;
     const City &getCity() const;
     int getSchedule() const;
+    float getWinCount() const;
 
     // Setter functions
     void updateElo(double eloChange);
+    void updateWinCount(float result);
+
+    // New functions for losses tracking
+    void addLoss(const std::shared_ptr<Team> &opponent, int pointDifferential);
+    const std::map<std::shared_ptr<Team>, int> &getTeamsLostTo() const;
 
 private:
     std::string name;
@@ -42,6 +50,10 @@ private:
     double elo;
     City city;
     int scheduleIdx;
+    float winCount;
+
+    // Map to store losses with point differentials
+    std::map<std::shared_ptr<Team>, int> teamsLostTo;
 };
 
 #endif // TEAM_H
