@@ -34,10 +34,14 @@ public:
     const City &getCity() const;
     int getSchedule() const;
     float getWinCount() const;
+    bool isPlayoffTeam() const;
+    int getPlayoffRound() const;
 
     // Setter functions
     void updateElo(double eloChange);
     void updateWinCount(float result);
+    void setPlayoffTeam(bool madePlayoffs);
+    void setPlayoffRound(int round);
 
     // New functions for losses tracking
     void addLoss(const std::shared_ptr<Team> &opponent, int pointDifferential);
@@ -51,6 +55,8 @@ private:
     City city;
     int scheduleIdx;
     float winCount;
+    bool playoffTeam; // Variable to track if the team made the playoffs
+    int playoffRound; // Variable to track the round the team made it to
 
     // Map to store losses with point differentials
     std::map<std::shared_ptr<Team>, int> teamsLostTo;

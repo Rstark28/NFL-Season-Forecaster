@@ -33,10 +33,13 @@ private:
     void printPlayoffs() const;
 
     void simRegularSeason();
+    void makePlayoffs();
     void getDivisionWinners();
     void getWildCard();
     std::shared_ptr<Team> resolveTiebreaker(const std::shared_ptr<Team> &team1,
                                             const std::shared_ptr<Team> &team2);
+    void simulatePlayoffs();
+    std::shared_ptr<Team> simPlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam);
 
     void processAllGames();
     void processTeamGames(int teamIndex);
@@ -48,6 +51,9 @@ private:
     void updateGame();
     void updateEloRatings(std::shared_ptr<Game> gamePtr);
 
+    void simulateMultipleSeasons(int numSeasons);
+    void printSeasonResults(const std::map<std::string, std::vector<int>> &teamWins, int season) const;
+    void printFinalResults(const std::map<std::string, std::vector<int>> &teamWins, const std::map<std::string, std::vector<int>> &playoffRounds, int numSeasons) const;
     std::vector<std::vector<std::shared_ptr<Game>>> NFLSchedule;
     std::unordered_map<std::string, std::shared_ptr<Team>> teamMapByAbbreviation;
     std::unordered_map<int, std::shared_ptr<Team>> teamMapByIndex;

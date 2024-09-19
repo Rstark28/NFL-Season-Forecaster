@@ -78,3 +78,23 @@ const std::map<std::shared_ptr<Team>, int> &Team::getTeamsLostTo() const
 {
     return teamsLostTo;
 }
+
+void Team::setPlayoffTeam(bool madePlayoffs)
+{
+    playoffTeam = madePlayoffs;
+}
+
+void Team::setPlayoffRound(int round)
+{
+    playoffRound = round;
+}
+
+bool Team::isPlayoffTeam() const
+{
+    return playoffTeam;
+}
+
+int Team::getPlayoffRound() const
+{
+    return playoffRound;
+}

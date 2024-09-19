@@ -54,7 +54,11 @@ void NFLSim::runQueryLoop()
         }
         else if (command == "run")
         {
-            simRegularSeason();
+            int numSeasons;
+            std::cout << "Enter number of seasons to simulate: ";
+            std::cin >> numSeasons;
+            std::cin.ignore(); // Ignore newline character left in the input buffer
+            simulateMultipleSeasons(numSeasons);
         }
         else
         {
@@ -690,9 +694,19 @@ void NFLSim::simRegularSeason()
     }
 
     // Determine division winners and print league structure
+    printSchedule();
+    makePlayoffs();
+    simulatePlayoffs();
+}
+
+void NFLSim::makePlayoffs()
+{
     getDivisionWinners();
     getWildCard();
-    printPlayoffs();
+    for (auto &team : teamMapByAbbreviation)
+    {
+        team.second->setPlayoffTeam(true);
+    }
 }
 
 void NFLSim::getDivisionWinners()
@@ -868,4 +882,239 @@ std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &tea
 
     // If the teams have not played each other or point differentials are the same, return a random choice
     return (std::rand() % 2 == 0) ? team1 : team2;
+}
+
+void NFLSim::simulatePlayoffs()
+{
+    std::shared_ptr<Team> afcChampion, nfcChampion;
+
+    // Iterate through each conference
+    for (const auto &conferencePair : playoffSeeding)
+    {
+        const std::string &conference = conferencePair.first;
+        std::vector<std::shared_ptr<Team>> teams = conferencePair.second;
+
+        for (auto &team : teams)
+        {
+            team->setPlayoffRound(1);
+        }
+
+        // First round: 2nd seed vs 7th seed, 3rd seed vs 6th seed, 4th seed vs 5th seed
+        std::vector<std::shared_ptr<Team>> round2;
+        round2.push_back(teams[0]); // Top seed gets a bye
+        round2.push_back(simPlayoffGame(teams[1], teams[6]));
+        round2.push_back(simPlayoffGame(teams[2], teams[5]));
+        round2.push_back(simPlayoffGame(teams[3], teams[4]));
+
+        // Update teams' furthest playoff round
+        for (auto &team : round2)
+        {
+            team->setPlayoffRound(2);
+        }
+
+        // Second round: Top seed vs lowest remaining seed, other two teams play each other
+        std::sort(round2.begin() + 1, round2.end(),
+                  [](const std::shared_ptr<Team> &a, const std::shared_ptr<Team> &b)
+                  {
+                      return a->getWinCount() < b->getWinCount();
+                  });
+        std::vector<std::shared_ptr<Team>> round3;
+        round3.push_back(simPlayoffGame(round2[0], round2[1]));
+        round3.push_back(simPlayoffGame(round2[2], round2[3]));
+
+        // Update teams' furthest playoff round
+        for (auto &team : round3)
+        {
+            team->setPlayoffRound(3);
+        }
+
+        // Conference championship
+        std::shared_ptr<Team> conferenceChampion = simPlayoffGame(round3[0], round3[1]);
+        std::cout << "Conference Champion (" << conference << "): " << conferenceChampion->getName() << std::endl;
+
+        // Store the conference champion for the Super Bowl
+        if (conference == "AFC")
+        {
+            afcChampion = conferenceChampion;
+        }
+        else if (conference == "NFC")
+        {
+            nfcChampion = conferenceChampion;
+        }
+
+        // Update the furthest playoff round for the conference champion
+        conferenceChampion->setPlayoffRound(4);
+    }
+
+    // Super Bowl
+    if (afcChampion && nfcChampion)
+    {
+        std::shared_ptr<Team> superBowlChampion = simPlayoffGame(afcChampion, nfcChampion);
+        std::cout << "Super Bowl Champion: " << superBowlChampion->getName() << std::endl;
+
+        // Update the furthest playoff round for the Super Bowl champion
+        superBowlChampion->setPlayoffRound(5);
+    }
+}
+
+std::shared_ptr<Team> NFLSim::simPlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam)
+{
+    // Create a new game object for the playoff game
+    auto game = std::make_shared<Game>(homeTeam, awayTeam);
+
+    // Calculate home odds based on Elo ratings and other factors
+    getHomeOddsStandard(game);
+
+    // Generate a random float between 0 and 1
+    float randNum = static_cast<float>(std::rand()) / RAND_MAX;
+
+    // Generate scores using a log-linear distribution
+    int score1 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+    int score2 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+
+    int winningScore, losingScore;
+    std::shared_ptr<Team> winningTeam, losingTeam;
+
+    // Ensure that one score is higher than the other
+    winningScore = std::max(score1, score2);
+    losingScore = std::min(score1, score2);
+    if (winningScore == losingScore)
+        winningScore++; // Avoid ties unless specified
+
+    // Determine the winning and losing team
+    if (randNum > game->getHomeOdds())
+    {
+        game->setAwayTeamScore(winningScore);
+        game->setHomeTeamScore(losingScore);
+        winningTeam = game->getAwayTeam();
+        losingTeam = game->getHomeTeam();
+    }
+    else
+    {
+        game->setHomeTeamScore(winningScore);
+        game->setAwayTeamScore(losingScore);
+        winningTeam = game->getHomeTeam();
+        losingTeam = game->getAwayTeam();
+    }
+
+    // Mark the game as complete and update Elo ratings
+    game->setIsComplete(true);
+    updateEloRatings(game);
+
+    // Print the result of the game
+    std::cout << awayTeam->getAbbreviation() << game->printGame(awayTeam) << std::endl;
+
+    return winningTeam;
+}
+
+void NFLSim::simulateMultipleSeasons(int numSeasons)
+{
+
+    // Data structure to keep track of wins and playoff rounds for each team across seasons
+    std::map<std::string, std::vector<int>> teamWins;
+    std::map<std::string, std::vector<int>> playoffRounds;
+
+    // Initialize the win counts and playoff rounds for each team
+    for (const auto &teamPair : teamMapByAbbreviation)
+    {
+        teamWins[teamPair.first] = std::vector<int>(numSeasons, 0);
+        playoffRounds[teamPair.first] = std::vector<int>(numSeasons, 0);
+    }
+
+    // Simulate each season
+    for (int season = 0; season < numSeasons; ++season)
+    {
+        std::cout << "Simulating Season " << season + 1 << "..." << std::endl;
+
+        // Simulate the regular season
+        simRegularSeason();
+
+        // Record the number of wins and playoff rounds for each team
+        for (const auto &teamPair : teamMapByAbbreviation)
+        {
+            teamWins[teamPair.first][season] = teamPair.second->getWinCount();
+            playoffRounds[teamPair.first][season] = teamPair.second->getPlayoffRound();
+        }
+
+        // Print the results of the season
+        std::cout << "Results of Season " << season + 1 << ":" << std::endl;
+        printSeasonResults(teamWins, season);
+    }
+
+    // Print the final results in a table format
+    printFinalResults(teamWins, playoffRounds, numSeasons);
+}
+
+void NFLSim::printSeasonResults(const std::map<std::string, std::vector<int>> &teamWins, int season) const
+{
+    std::cout << std::left << std::setw(15) << "Team" << " | " << "Wins" << std::endl;
+    std::cout << std::string(25, '-') << std::endl;
+
+    for (const auto &teamPair : teamWins)
+    {
+        std::cout << std::left << std::setw(15) << teamPair.first << " | " << teamPair.second[season] << std::endl;
+    }
+}
+
+void NFLSim::printFinalResults(const std::map<std::string, std::vector<int>> &teamWins, const std::map<std::string, std::vector<int>> &playoffRounds, int numSeasons) const
+{
+    std::cout << std::left << std::setw(15) << "Team";
+    for (int season = 0; season < numSeasons; ++season)
+    {
+        std::cout << " | Season " << season + 1;
+    }
+    std::cout << std::endl;
+    std::cout << std::string(15 + (numSeasons * 10), '-') << std::endl;
+
+    for (const auto &teamPair : teamWins)
+    {
+        std::cout << std::left << std::setw(15) << teamPair.first;
+        for (int season = 0; season < numSeasons; ++season)
+        {
+            std::cout << " | " << std::setw(8) << teamPair.second[season];
+        }
+        std::cout << std::endl;
+    }
+
+    // Calculate and print playoff probabilities
+    std::cout << std::endl
+              << "Playoff Probabilities:" << std::endl;
+    std::cout << std::left << std::setw(15) << "Team" << " | " << "WildCard" << "Divisional" << " | " << "Conference" << " | " << "Super Bowl" << " | " << "Championships" << std::endl;
+    std::cout << std::string(50, '-') << std::endl;
+
+    for (const auto &teamPair : playoffRounds)
+    {
+        int wildCardCount = 0;
+        int divisionalCount = 0;
+        int conferenceCount = 0;
+        int superBowlCount = 0;
+        int championshipCount = 0;
+
+        for (int round : teamPair.second)
+        {
+            if (round >= 1)
+                wildCardCount++;
+            if (round >= 2)
+                divisionalCount++;
+            if (round >= 3)
+                conferenceCount++;
+            if (round >= 4)
+                superBowlCount++;
+            if (round == 5)
+                championshipCount++;
+        }
+
+        double wildCardProb = static_cast<double>(wildCardCount) / numSeasons;
+        double divisionalProb = static_cast<double>(divisionalCount) / numSeasons;
+        double conferenceProb = static_cast<double>(conferenceCount) / numSeasons;
+        double superBowlProb = static_cast<double>(superBowlCount) / numSeasons;
+        double championshipProb = static_cast<double>(championshipCount) / numSeasons;
+
+        std::cout << std::left << std::setw(15) << teamPair.first
+                  << " | " << std::setw(10) << wildCardProb
+                  << " | " << std::setw(10) << divisionalProb
+                  << " | " << std::setw(10) << conferenceProb
+                  << " | " << std::setw(10) << superBowlProb
+                  << " | " << std::setw(10) << championshipProb << std::endl;
+    }
 }

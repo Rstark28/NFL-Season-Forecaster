@@ -7,7 +7,23 @@ Game::Game(std::vector<std::string> tokens, const std::unordered_map<std::string
       isComplete(isBye || tokens[3] == "Y"),
       week(std::stoi(tokens[0])),
       homeTeamScore(!isBye ? std::stoi(tokens[4]) : 0),
-      awayTeamScore(!isBye ? std::stoi(tokens[5]) : 0)
+      awayTeamScore(!isBye ? std::stoi(tokens[5]) : 0),
+      homeOdds(0.0),
+      fieldAdvantage(0.0),
+      eloEffect(0.0)
+{
+}
+
+Game::Game(const std::shared_ptr<Team> &homeTeam, const std::shared_ptr<Team> &awayTeam)
+    : homeTeam(homeTeam),
+      awayTeam(awayTeam),
+      isBye(false),
+      isComplete(false),
+      homeTeamScore(0),
+      awayTeamScore(0),
+      homeOdds(0.0),
+      fieldAdvantage(0.0),
+      eloEffect(0.0)
 {
 }
 

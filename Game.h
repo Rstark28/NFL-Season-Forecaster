@@ -11,6 +11,7 @@ class Game
 {
 public:
     Game(std::vector<std::string> tokens, const std::unordered_map<std::string, std::shared_ptr<Team>> &teamMapByAbbreviation);
+    Game(const std::shared_ptr<Team> &homeTeam, const std::shared_ptr<Team> &awayTeam);
     ~Game();
 
     // Getter functions
