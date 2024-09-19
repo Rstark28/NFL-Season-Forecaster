@@ -20,40 +20,46 @@
 class NFLSim
 {
 public:
+    // Constructor and Destructor
     NFLSim(const std::string &filename);
     ~NFLSim();
 
 private:
-    void runQueryLoop();
-    void readSchedule(const std::string &filename);
-    std::vector<std::string> processGameInfo(std::string teamName, std::string gameInfo, int week);
-    void readTeams(const std::string &filename);
-    void printSchedule() const;
-    void printLeagueStructure() const;
-    void printPlayoffs() const;
-
-    void simRegularSeason();
-    void makePlayoffs();
-    void getDivisionWinners();
-    void getWildCard();
-    std::shared_ptr<Team> resolveTiebreaker(const std::shared_ptr<Team> &team1,
-                                            const std::shared_ptr<Team> &team2);
+    // Core Simulation Functions
+    void runSimulation();
+    void simulateRegularSeason();
     void simulatePlayoffs();
-    std::shared_ptr<Team> simPlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam);
+    void simulateMultipleSeasons(int numSeasons);
 
+    // Schedule and Team Management
+    void readSchedule(const std::string &filename);
+    void readTeams(const std::string &filename);
     void processAllGames();
     void processTeamGames(int teamIndex);
-    void getHomeOddsStandard(std::shared_ptr<Game> &game);
+    std::vector<std::string> parseGameInfo(const std::string &teamName, const std::string &gameInfo, int week);
+
+    // Playoff Management
+    void determinePlayoffTeams();
+    void determineDivisionWinners();
+    void determineWildCardTeams();
+    std::shared_ptr<Team> resolveTiebreaker(const std::shared_ptr<Team> &team1, const std::shared_ptr<Team> &team2);
+    std::shared_ptr<Team> simulatePlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam);
+
+    // Elo Rating and Game Processing
+    void manualGameResults();
+    void updateEloRatings(std::shared_ptr<Game> gamePtr);
+    void calculateHomeOdds(std::shared_ptr<Game> &game);
     double calculateFieldAdvantage(const City &homeCity, const City &awayCity);
     double adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam);
-    double calculateHomeOdds(double eloDiff);
+    double calculateHomeOddsFromEloDiff(double eloDiff);
 
-    void updateGame();
-    void updateEloRatings(std::shared_ptr<Game> gamePtr);
-
-    void simulateMultipleSeasons(int numSeasons);
+    // Output Functions
+    void printSchedule() const;
+    void printLeagueStructure() const;
     void printSeasonResults(const std::map<std::string, std::vector<int>> &teamWins, int season) const;
     void printFinalResults(const std::map<std::string, std::vector<int>> &teamWins, const std::map<std::string, std::vector<int>> &playoffRounds, int numSeasons) const;
+
+    // Data Members
     std::vector<std::vector<std::shared_ptr<Game>>> NFLSchedule;
     std::unordered_map<std::string, std::shared_ptr<Team>> teamMapByAbbreviation;
     std::unordered_map<int, std::shared_ptr<Team>> teamMapByIndex;

@@ -10,43 +10,44 @@
 class Game
 {
 public:
+    // Constructors
     Game(std::vector<std::string> tokens, const std::unordered_map<std::string, std::shared_ptr<Team>> &teamMapByAbbreviation);
     Game(const std::shared_ptr<Team> &homeTeam, const std::shared_ptr<Team> &awayTeam);
     ~Game();
 
     // Getter functions
-    std::string printGame(const std::shared_ptr<Team> &primary) const;
+    std::string getGameDetails(const std::shared_ptr<Team> &primaryTeam) const;
     std::shared_ptr<Team> getHomeTeam() const;
     std::shared_ptr<Team> getAwayTeam() const;
 
-    bool getIsBye() const;
-    bool getIsComplete() const;
-    int getWeek() const;
+    bool isByeWeek() const;
+    bool isGameComplete() const;
+    int getWeekNumber() const;
     int getHomeTeamScore() const;
     int getAwayTeamScore() const;
-    double getHomeOdds() const;
+    double getHomeTeamOdds() const;
     double getFieldAdvantage() const;
-    double getEloEffect() const;
+    double getEloRatingChange() const;
 
     // Setter functions
     void setHomeTeamScore(int score);
     void setAwayTeamScore(int score);
-    void setIsComplete(bool complete);
-    void setHomeOdds(double odds);
+    void setGameComplete(bool complete);
+    void setHomeTeamOdds(double odds);
     void setFieldAdvantage(double advantage);
-    void setEloEffect(double eloChange);
+    void setEloRatingChange(double eloChange);
 
 private:
-    std::shared_ptr<Team> homeTeam;
-    std::shared_ptr<Team> awayTeam;
-    bool isBye = false;
-    bool isComplete = false;
-    int week;
-    int homeTeamScore = 0;
-    int awayTeamScore = 0;
-    double homeOdds;
-    double fieldAdvantage = -1;
-    double eloEffect = 0;
+    std::shared_ptr<Team> homeTeam; // Home team
+    std::shared_ptr<Team> awayTeam; // Away team
+    bool byeWeek = false;           // Indicates if it's a bye week
+    bool gameComplete = false;      // Indicates if the game is complete
+    int weekNumber;                 // Week number of the game
+    int homeTeamScore = 0;          // Score of the home team
+    int awayTeamScore = 0;          // Score of the away team
+    double homeTeamOdds;            // Odds for the home team
+    double fieldAdvantage = -1;     // Field advantage value
+    double eloRatingChange = 0;     // Change in Elo rating
 };
 
 #endif // GAME_H

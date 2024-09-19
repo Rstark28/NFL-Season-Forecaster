@@ -1,37 +1,16 @@
 #include "NFLSim.h"
 
-/**
- * func::   NFLSim
- * param:   filename A string representing the name of the file containing the schedule information.
- * return:  None
- * info:    Constructor for the NFLSim class. Initializes the simulation by reading the NFL team data
- *          from a file and the game schedule from another file. Also processes all games to calculate
- *          initial odds. Starts the query loop to handle user commands.
- */
 NFLSim::NFLSim(const std::string &filename)
 {
     readTeams("preseason_nfl_teams.csv");
     readSchedule(filename);
     processAllGames();
-    runQueryLoop();
+    runSimulation();
 }
 
-/**
- * func::   ~NFLSim
- * param:   None
- * return:  None
- * info:    Destructor for the NFLSim class. Cleans up any resources used by the NFLSim class.
- */
 NFLSim::~NFLSim() {}
 
-/**
- * func::   runQueryLoop
- * param:   None
- * return:  None
- * info:    Runs a query loop that processes user commands to quit, update games, print the schedule,
- *          or run the simulation.
- */
-void NFLSim::runQueryLoop()
+void NFLSim::runSimulation()
 {
     std::string command;
 
@@ -46,7 +25,7 @@ void NFLSim::runQueryLoop()
         }
         else if (command == "update")
         {
-            updateGame();
+            manualGameResults();
         }
         else if (command == "print")
         {
@@ -66,14 +45,6 @@ void NFLSim::runQueryLoop()
         }
     }
 }
-
-/**
- * func::   readSchedule
- * param:   filename A string representing the name of the file containing the schedule information.
- * return:  None
- * info:    Reads the schedule from the specified file, ensuring that no duplicate games are added
- *          to the schedule. Each team's schedule is stored in the NFLSchedule member variable.
- */
 
 void NFLSim::readSchedule(const std::string &filename)
 {
@@ -102,11 +73,11 @@ void NFLSim::readSchedule(const std::string &filename)
         while (std::getline(ss, gameInfo, ','))
         {
             // Process the game information and create a new Game object wrapped in a shared_ptr
-            std::vector<std::string> tokens = processGameInfo(teamName, gameInfo, week);
+            std::vector<std::string> tokens = parseGameInfo(teamName, gameInfo, week);
             auto newGame = std::make_shared<Game>(tokens, teamMapByAbbreviation);
 
             // Check if the game object already exists, if it does push existing object again
-            int minScheduleIdx = std::min(newGame->getHomeTeam()->getSchedule(), newGame->getAwayTeam()->getSchedule());
+            int minScheduleIdx = std::min(newGame->getHomeTeam()->getScheduleIndex(), newGame->getAwayTeam()->getScheduleIndex());
             if (minScheduleIdx < NFLSchedule.size())
             {
                 teamSchedule.push_back(NFLSchedule[minScheduleIdx][week]);
@@ -115,7 +86,7 @@ void NFLSim::readSchedule(const std::string &filename)
             {
                 teamSchedule.push_back(newGame);
                 // Update Elos if game was completed in csv file
-                if (newGame->getIsComplete())
+                if (newGame->isGameComplete())
                 {
                     updateEloRatings(newGame);
                 }
@@ -130,16 +101,7 @@ void NFLSim::readSchedule(const std::string &filename)
     file.close();
 }
 
-/**
- * func::   processGameInfo
- * param:   teamName A string representing the name of the team.
- * param:   gameInfo A string containing game information for a specific week.
- * param:   week An integer representing the week number of the game.
- * return:  A vector of strings containing processed game information, including week, team names, and game details.
- * info:    Processes the game information string by extracting relevant details, determining the home and away
- *          teams, and return:s a vector of strings with the processed game data.
- */
-std::vector<std::string> NFLSim::processGameInfo(std::string teamName, std::string gameInfo, int week)
+std::vector<std::string> NFLSim::parseGameInfo(const std::string &teamName, const std::string &gameInfo, int week)
 {
     std::vector<std::string> tokens;
     std::stringstream ss(gameInfo);
@@ -163,13 +125,6 @@ std::vector<std::string> NFLSim::processGameInfo(std::string teamName, std::stri
     return tokens;
 }
 
-/**
- * func::   readTeams
- * param:   filename A string representing the name of the file containing the team data.
- * return:  None
- * info:    Reads the team data from the specified file, creates Team objects, and stores them in both teamMaps
- *          unordered_map using the team's abbreviation as the key.
- */
 void NFLSim::readTeams(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -221,12 +176,6 @@ void NFLSim::readTeams(const std::string &filename)
     file.close();
 }
 
-/**
- * func::   printSchedule
- * param:   None
- * return:  None
- * info:    Prints the entire schedule in a formatted manner, ensuring each game is aligned for better readability.
- */
 void NFLSim::printSchedule() const
 {
     // Define column widths for formatting
@@ -243,7 +192,7 @@ void NFLSim::printSchedule() const
         auto team = teamMapByIndex.at(i);
 
         // Print the team name
-        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getElo() << " | Wins: " << team->getWinCount() << std::endl;
+        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getEloRating() << " | Wins: " << team->getWinCount() << std::endl;
         std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 
         // Retrieve and print the games for the current team from the schedule
@@ -254,7 +203,7 @@ void NFLSim::printSchedule() const
         for (const auto &game : games)
         {
             std::cout << std::left << std::setw(teamColumnWidth) << ("Week " + std::to_string(weekIndex))
-                      << " | " << std::setw(gameColumnWidth) << game->printGame(team) << std::endl;
+                      << " | " << std::setw(gameColumnWidth) << game->getGameDetails(team) << std::endl;
             ++weekIndex;
         }
 
@@ -284,37 +233,6 @@ void NFLSim::printLeagueStructure() const
     }
 }
 
-void NFLSim::printPlayoffs() const
-{
-    std::cout << "Playoff Seeding:\n";
-
-    // Iterate through each conference in the playoff seeding
-    for (const auto &conferencePair : playoffSeeding)
-    {
-        const std::string &conference = conferencePair.first;
-        const std::vector<std::shared_ptr<Team>> &teams = conferencePair.second;
-
-        std::cout << "Conference: " << conference << "\n";
-
-        // Print the teams in the playoff seeding
-        for (size_t i = 0; i < teams.size(); ++i)
-        {
-            std::cout << "  Seed " << (i + 1) << ": "
-                      << teams[i]->getName() << " ("
-                      << teams[i]->getAbbreviation() << "), Win Count: "
-                      << teams[i]->getWinCount() << "\n";
-        }
-    }
-}
-
-/**
- * func::   calculateDistance
- * param:   homeCity A reference to a City object representing the home team's city.
- * param:   awayCity A reference to a City object representing the away team's city.
- * return:  A double representing the distance in miles between the two cities.
- * info:    Calculates the distance between the home city and the away city using the Haversine formula
- *          and converts it from meters to miles.
- */
 double NFLSim::calculateFieldAdvantage(const City &homeCity, const City &awayCity)
 {
     constexpr double R = 6378137.0; // Radius of the Earth in meters
@@ -344,22 +262,13 @@ double NFLSim::calculateFieldAdvantage(const City &homeCity, const City &awayCit
     return distance; // Distance in miles
 }
 
-/**
- * func::   adjustEloForByes
- * param:   game A reference to a Game object representing the current game.
- * param:   homeTeam A reference to a Team object representing the home team.
- * param:   awayTeam A reference to a Team object representing the away team.
- * return:  A double representing the adjusted Elo difference accounting for bye weeks.
- * info:    Adjusts the Elo difference between the home and away teams, factoring in the effects
- *          of bye weeks on the team's performance.
- */
 double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam)
 {
-    double elo_diff = homeTeam.getElo() - awayTeam.getElo();
+    double elo_diff = homeTeam.getEloRating() - awayTeam.getEloRating();
 
-    int homeTeamIdx = homeTeam.getSchedule();
-    int awayTeamIdx = awayTeam.getSchedule();
-    int week = game.getWeek();
+    int homeTeamIdx = homeTeam.getScheduleIndex();
+    int awayTeamIdx = awayTeam.getScheduleIndex();
+    int week = game.getWeekNumber();
     if (NFLSchedule[homeTeamIdx][week]->getAwayTeam()->getName() == homeTeam.getName())
     {
         elo_diff += 25;
@@ -372,18 +281,12 @@ double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Te
     return elo_diff;
 }
 
-/**
- * func::   calculateHomeOdds
- * param:   eloDiff A double representing the difference in two teams' elos.
- * return:  A double representing the homeOdds for a game object.
- * info:    Calculates homeOdds based on eloDiff var.
- */
-double NFLSim::calculateHomeOdds(double eloDiff)
+double NFLSim::calculateHomeOddsFromEloDiff(double eloDiff)
 {
     return 1.0 / (1.0 + std::exp(-eloDiff / 400.0));
 }
 
-void NFLSim::getHomeOddsStandard(std::shared_ptr<Game> &game)
+void NFLSim::calculateHomeOdds(std::shared_ptr<Game> &game)
 {
     // Access the home and away teams via shared pointers
     auto homeTeam = game->getHomeTeam();
@@ -409,16 +312,10 @@ void NFLSim::getHomeOddsStandard(std::shared_ptr<Game> &game)
         eloDiff += game->getFieldAdvantage();
     }
 
-    double homeOdds = calculateHomeOdds(eloDiff);
-    game->setHomeOdds(homeOdds);
+    double homeOdds = calculateHomeOddsFromEloDiff(eloDiff);
+    game->setHomeTeamOdds(homeOdds);
 }
 
-/**
- * func::   processAllGames
- * param:   None
- * return:  None
- * info:    Calculates homeOdds for all unique game objects.
- */
 void NFLSim::processAllGames()
 {
     // Iterate over each week's schedule in NFLSchedule
@@ -427,10 +324,10 @@ void NFLSim::processAllGames()
         // Iterate over each game in the weekly schedule
         for (auto &gamePtr : weeklySchedule)
         {
-            // Call getHomeOddsStandard for each game that is not complete
-            if (!gamePtr->getIsComplete())
+            // Call calculateHomeOdds for each game that is not complete
+            if (!gamePtr->isGameComplete())
             {
-                getHomeOddsStandard(gamePtr); // Dereference shared_ptr to pass the object
+                calculateHomeOdds(gamePtr); // Dereference shared_ptr to pass the object
             }
         }
     }
@@ -444,21 +341,15 @@ void NFLSim::processTeamGames(int teamIndex)
     // Iterate over each game in the team's weekly schedule
     for (auto &gamePtr : weeklySchedule)
     {
-        // Call getHomeOddsStandard for each game that is not complete
-        if (!gamePtr->getIsComplete())
+        // Call calculateHomeOdds for each game that is not complete
+        if (!gamePtr->isGameComplete())
         {
-            getHomeOddsStandard(gamePtr); // Dereference shared_ptr to pass the object
+            calculateHomeOdds(gamePtr); // Dereference shared_ptr to pass the object
         }
     }
 }
 
-/**
- * func::   updateGame
- * param:   None
- * return:  None
- * info:    Sets game outcome.
- */
-void NFLSim::updateGame()
+void NFLSim::manualGameResults()
 {
     std::string teamAbbrev;
     int week;
@@ -497,7 +388,7 @@ void NFLSim::updateGame()
     }
 
     auto team = teamIt->second;
-    int scheduleIdx = team->getSchedule(); // Get the schedule index for the team
+    int scheduleIdx = team->getScheduleIndex(); // Get the schedule index for the team
 
     // Check if the week is valid
     if (scheduleIdx < 0 || scheduleIdx > 31 || week < 0 || week > 18)
@@ -511,17 +402,17 @@ void NFLSim::updateGame()
     auto &game = *gamePtr;                          // Dereference to get Game&
 
     // If game outcome has already been set, reset changes
-    if (game.getEloEffect() != 0)
+    if (game.getEloRatingChange() != 0)
     {
-        double eloChange = game.getEloEffect();
-        game.getHomeTeam()->updateElo(-eloChange);
-        game.getAwayTeam()->updateElo(eloChange);
+        double eloChange = game.getEloRatingChange();
+        game.getHomeTeam()->updateEloRating(-eloChange);
+        game.getAwayTeam()->updateEloRating(eloChange);
     }
 
     // Set game scores
     game.setHomeTeamScore(homeScore);
     game.setAwayTeamScore(awayScore);
-    game.setIsComplete(true);
+    game.setGameComplete(true);
 
     // Check for tie
     if (homeScore == awayScore)
@@ -548,8 +439,8 @@ void NFLSim::updateGame()
     }
 
     // Process games for both teams after the update
-    processTeamGames(game.getHomeTeam()->getSchedule());
-    processTeamGames(game.getAwayTeam()->getSchedule());
+    processTeamGames(game.getHomeTeam()->getScheduleIndex());
+    processTeamGames(game.getAwayTeam()->getScheduleIndex());
 
     std::cout << "Game and Elo updated." << std::endl;
 }
@@ -577,8 +468,8 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
     auto &homeTeam = *homeTeamPtr;
     auto &awayTeam = *awayTeamPtr;
 
-    double homeElo = homeTeam.getElo();
-    double awayElo = awayTeam.getElo();
+    double homeElo = homeTeam.getEloRating();
+    double awayElo = awayTeam.getEloRating();
 
     int homeScore = game.getHomeTeamScore();
     int awayScore = game.getAwayTeamScore();
@@ -609,14 +500,14 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
     awayElo += awayEloAdjustment;
 
     // Update team ratings
-    homeTeam.updateElo(homeEloAdjustment);
-    awayTeam.updateElo(awayEloAdjustment);
+    homeTeam.updateEloRating(homeEloAdjustment);
+    awayTeam.updateEloRating(awayEloAdjustment);
 
     // Set the Elo effect for the game
-    game.setEloEffect(homeEloAdjustment);
+    game.setEloRatingChange(homeEloAdjustment);
 }
 
-void NFLSim::simRegularSeason()
+void NFLSim::simulateRegularSeason()
 {
     // Initialize the random number generator
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
@@ -628,7 +519,7 @@ void NFLSim::simRegularSeason()
         for (const auto &game : weeklyGames)
         {
             // Skip if the game is already complete
-            if (game->getIsComplete())
+            if (game->isGameComplete())
                 continue;
 
             // Generate a random float between 0 and 1
@@ -658,7 +549,7 @@ void NFLSim::simRegularSeason()
                     winningScore++; // Avoid ties unless specified
 
                 // Determine the winning and losing team
-                if (randNum > game->getHomeOdds())
+                if (randNum > game->getHomeTeamOdds())
                 {
                     game->setAwayTeamScore(winningScore);
                     game->setHomeTeamScore(losingScore);
@@ -677,12 +568,12 @@ void NFLSim::simRegularSeason()
             }
 
             // Mark the game as complete and update Elo ratings
-            game->setIsComplete(true);
+            game->setGameComplete(true);
             updateEloRatings(game);
 
             // Process games for each team
-            processTeamGames(game->getHomeTeam()->getSchedule());
-            processTeamGames(game->getAwayTeam()->getSchedule());
+            processTeamGames(game->getHomeTeam()->getScheduleIndex());
+            processTeamGames(game->getAwayTeam()->getScheduleIndex());
 
             // Record the loss for the losing team
             if (winningTeam && losingTeam)
@@ -694,22 +585,21 @@ void NFLSim::simRegularSeason()
     }
 
     // Determine division winners and print league structure
-    printSchedule();
-    makePlayoffs();
+    determinePlayoffTeams();
     simulatePlayoffs();
 }
 
-void NFLSim::makePlayoffs()
+void NFLSim::determinePlayoffTeams()
 {
-    getDivisionWinners();
-    getWildCard();
+    determineDivisionWinners();
+    determineWildCardTeams();
     for (auto &team : teamMapByAbbreviation)
     {
-        team.second->setPlayoffTeam(true);
+        team.second->setPlayoffStatus(true);
     }
 }
 
-void NFLSim::getDivisionWinners()
+void NFLSim::determineDivisionWinners()
 {
     // Data structure to store the top teams from each division for each conference
     std::map<std::string, std::vector<std::shared_ptr<Team>>> conferenceTeams;
@@ -798,7 +688,7 @@ void NFLSim::getDivisionWinners()
     }
 }
 
-void NFLSim::getWildCard()
+void NFLSim::determineWildCardTeams()
 {
     // Data structure to store wildcard teams for each conference
     std::map<std::string, std::vector<std::shared_ptr<Team>>> wildcardTeams;
@@ -848,8 +738,8 @@ void NFLSim::getWildCard()
 std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &team1,
                                                 const std::shared_ptr<Team> &team2)
 {
-    auto team1LostTo = team1->getTeamsLostTo();
-    auto team2LostTo = team2->getTeamsLostTo();
+    auto team1LostTo = team1->getLosses();
+    auto team2LostTo = team2->getLosses();
 
     // Seed the random number generator if not already seeded
     static bool seeded = false;
@@ -902,9 +792,9 @@ void NFLSim::simulatePlayoffs()
         // First round: 2nd seed vs 7th seed, 3rd seed vs 6th seed, 4th seed vs 5th seed
         std::vector<std::shared_ptr<Team>> round2;
         round2.push_back(teams[0]); // Top seed gets a bye
-        round2.push_back(simPlayoffGame(teams[1], teams[6]));
-        round2.push_back(simPlayoffGame(teams[2], teams[5]));
-        round2.push_back(simPlayoffGame(teams[3], teams[4]));
+        round2.push_back(simulatePlayoffGame(teams[1], teams[6]));
+        round2.push_back(simulatePlayoffGame(teams[2], teams[5]));
+        round2.push_back(simulatePlayoffGame(teams[3], teams[4]));
 
         // Update teams' furthest playoff round
         for (auto &team : round2)
@@ -919,8 +809,8 @@ void NFLSim::simulatePlayoffs()
                       return a->getWinCount() < b->getWinCount();
                   });
         std::vector<std::shared_ptr<Team>> round3;
-        round3.push_back(simPlayoffGame(round2[0], round2[1]));
-        round3.push_back(simPlayoffGame(round2[2], round2[3]));
+        round3.push_back(simulatePlayoffGame(round2[0], round2[1]));
+        round3.push_back(simulatePlayoffGame(round2[2], round2[3]));
 
         // Update teams' furthest playoff round
         for (auto &team : round3)
@@ -929,7 +819,7 @@ void NFLSim::simulatePlayoffs()
         }
 
         // Conference championship
-        std::shared_ptr<Team> conferenceChampion = simPlayoffGame(round3[0], round3[1]);
+        std::shared_ptr<Team> conferenceChampion = simulatePlayoffGame(round3[0], round3[1]);
         std::cout << "Conference Champion (" << conference << "): " << conferenceChampion->getName() << std::endl;
 
         // Store the conference champion for the Super Bowl
@@ -949,7 +839,7 @@ void NFLSim::simulatePlayoffs()
     // Super Bowl
     if (afcChampion && nfcChampion)
     {
-        std::shared_ptr<Team> superBowlChampion = simPlayoffGame(afcChampion, nfcChampion);
+        std::shared_ptr<Team> superBowlChampion = simulatePlayoffGame(afcChampion, nfcChampion);
         std::cout << "Super Bowl Champion: " << superBowlChampion->getName() << std::endl;
 
         // Update the furthest playoff round for the Super Bowl champion
@@ -957,13 +847,13 @@ void NFLSim::simulatePlayoffs()
     }
 }
 
-std::shared_ptr<Team> NFLSim::simPlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam)
+std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam)
 {
     // Create a new game object for the playoff game
     auto game = std::make_shared<Game>(homeTeam, awayTeam);
 
     // Calculate home odds based on Elo ratings and other factors
-    getHomeOddsStandard(game);
+    calculateHomeOdds(game);
 
     // Generate a random float between 0 and 1
     float randNum = static_cast<float>(std::rand()) / RAND_MAX;
@@ -982,7 +872,7 @@ std::shared_ptr<Team> NFLSim::simPlayoffGame(std::shared_ptr<Team> homeTeam, std
         winningScore++; // Avoid ties unless specified
 
     // Determine the winning and losing team
-    if (randNum > game->getHomeOdds())
+    if (randNum > game->getHomeTeamOdds())
     {
         game->setAwayTeamScore(winningScore);
         game->setHomeTeamScore(losingScore);
@@ -998,11 +888,11 @@ std::shared_ptr<Team> NFLSim::simPlayoffGame(std::shared_ptr<Team> homeTeam, std
     }
 
     // Mark the game as complete and update Elo ratings
-    game->setIsComplete(true);
+    game->setGameComplete(true);
     updateEloRatings(game);
 
     // Print the result of the game
-    std::cout << awayTeam->getAbbreviation() << game->printGame(awayTeam) << std::endl;
+    std::cout << awayTeam->getAbbreviation() << game->getGameDetails(awayTeam) << std::endl;
 
     return winningTeam;
 }
@@ -1027,7 +917,7 @@ void NFLSim::simulateMultipleSeasons(int numSeasons)
         std::cout << "Simulating Season " << season + 1 << "..." << std::endl;
 
         // Simulate the regular season
-        simRegularSeason();
+        simulateRegularSeason();
 
         // Record the number of wins and playoff rounds for each team
         for (const auto &teamPair : teamMapByAbbreviation)

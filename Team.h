@@ -5,8 +5,9 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <memory> // for std::shared_ptr
+#include <memory>
 
+// Struct to represent a city with a name and geographical coordinates
 struct City
 {
     std::string name;
@@ -18,48 +19,51 @@ struct City
         : name(std::move(cityName)), latitude(lat), longitude(lon) {}
 };
 
+// Class to represent a team with various attributes and functionalities
 class Team
 {
 public:
+    // Constructors and Destructor
     Team();
     Team(std::string teamName, std::string abbreviation, std::string teamColor,
-         double eloRating, std::string cityName, double lat, double lon, int schedule);
+         double eloRating, std::string cityName, double lat, double lon, int scheduleIndex);
     ~Team();
 
     // Getter functions
     std::string getName() const;
     std::string getAbbreviation() const;
     std::string getColor() const;
-    double getElo() const;
+    double getEloRating() const;
     const City &getCity() const;
-    int getSchedule() const;
+    int getScheduleIndex() const;
     float getWinCount() const;
-    bool isPlayoffTeam() const;
+    bool hasMadePlayoffs() const;
     int getPlayoffRound() const;
 
     // Setter functions
-    void updateElo(double eloChange);
+    void updateEloRating(double eloChange);
     void updateWinCount(float result);
-    void setPlayoffTeam(bool madePlayoffs);
+    void setPlayoffStatus(bool madePlayoffs);
     void setPlayoffRound(int round);
 
-    // New functions for losses tracking
+    // Functions for tracking losses
     void addLoss(const std::shared_ptr<Team> &opponent, int pointDifferential);
-    const std::map<std::shared_ptr<Team>, int> &getTeamsLostTo() const;
+    const std::map<std::shared_ptr<Team>, int> &getLosses() const;
 
 private:
-    std::string name;
-    std::string abbrev;
-    std::string color;
-    double elo;
-    City city;
-    int scheduleIdx;
-    float winCount;
-    bool playoffTeam; // Variable to track if the team made the playoffs
-    int playoffRound; // Variable to track the round the team made it to
+    // Private member variables
+    std::string name;         // Team name
+    std::string abbreviation; // Team abbreviation
+    std::string color;        // Team color
+    double eloRating;         // Team's Elo rating
+    City city;                // City where the team is based
+    int scheduleIndex;        // Index in the schedule
+    float winCount;           // Number of wins
+    bool playoffStatus;       // Whether the team made the playoffs
+    int playoffRound;         // The playoff round the team reached
 
     // Map to store losses with point differentials
-    std::map<std::shared_ptr<Team>, int> teamsLostTo;
+    std::map<std::shared_ptr<Team>, int> losses;
 };
 
 #endif // TEAM_H
