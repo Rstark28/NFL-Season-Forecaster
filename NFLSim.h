@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
+#include <numeric>
 #include "Game.h"
 
 class NFLSim
@@ -27,6 +28,7 @@ public:
 private:
     // Core Simulation Functions
     void runSimulation();
+    void handleRunCommand();
     void simulateRegularSeason();
     void simulatePlayoffs();
     void simulateMultipleSeasons(int numSeasons);
@@ -55,7 +57,8 @@ private:
 
     // Output Functions
     void printSchedule() const;
-    void printLeagueStructure() const;
+    void printTeamHeader(const std::shared_ptr<Team> &team, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const;
+    void printTeamGames(const std::shared_ptr<Team> &team, const std::vector<std::shared_ptr<Game>> &games, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const;
     void printSeasonResults(const std::map<std::string, std::vector<int>> &teamWins, int season) const;
     void printFinalResults(const std::map<std::string, std::vector<int>> &teamWins, const std::map<std::string, std::vector<int>> &playoffRounds, int numSeasons) const;
 

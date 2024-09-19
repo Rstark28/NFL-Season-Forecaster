@@ -1,15 +1,37 @@
+
 #include "NFLSim.h"
 
-NFLSim::NFLSim(const std::string &filename)
+/**
+ * @brief Constructor for the NFLSim class.
+ *
+ * This constructor initializes the NFL simulation by reading team data,
+ * reading the schedule from a file, processing all games, and running the simulation.
+ *
+ * @param scheduleFilename The filename of the schedule CSV file.
+ */
+NFLSim::NFLSim(const std::string &scheduleFilename)
 {
-    readTeams("preseason_nfl_teams.csv");
-    readSchedule(filename);
+    // Read team data from a predefined CSV file
+    readTeams("static/preseason_nfl_teams.csv");
+
+    // Read the schedule from the provided filename
+    readSchedule(scheduleFilename);
+
+    // Process all games to calculate initial odds and Elo ratings
     processAllGames();
+
+    // Run the simulation
     runSimulation();
 }
 
 NFLSim::~NFLSim() {}
 
+/**
+ * @brief Runs the main simulation loop, allowing user interaction.
+ *
+ * This function provides a command-line interface for the user to interact with the simulation.
+ * The user can quit the simulation, update game results manually, print the schedule, or run multiple seasons.
+ */
 void NFLSim::runSimulation()
 {
     std::string command;
@@ -33,11 +55,7 @@ void NFLSim::runSimulation()
         }
         else if (command == "run")
         {
-            int numSeasons;
-            std::cout << "Enter number of seasons to simulate: ";
-            std::cin >> numSeasons;
-            std::cin.ignore(); // Ignore newline character left in the input buffer
-            simulateMultipleSeasons(numSeasons);
+            handleRunCommand();
         }
         else
         {
@@ -46,6 +64,28 @@ void NFLSim::runSimulation()
     }
 }
 
+/**
+ * @brief Handles the "run" command to simulate multiple seasons.
+ *
+ * This function prompts the user to enter the number of seasons to simulate and then runs the simulation for that many seasons.
+ */
+void NFLSim::handleRunCommand()
+{
+    int numSeasons;
+    std::cout << "Enter number of seasons to simulate: ";
+    std::cin >> numSeasons;
+    std::cin.ignore(); // Ignore newline character left in the input buffer
+    simulateMultipleSeasons(numSeasons);
+}
+
+/**
+ * @brief Reads the schedule from a CSV file and populates the NFLSchedule.
+ *
+ * This function reads the schedule from the provided CSV file, processes each line to extract game information,
+ * and creates Game objects for each game. It updates the NFLSchedule with the parsed game data.
+ *
+ * @param filename The name of the CSV file containing the schedule.
+ */
 void NFLSim::readSchedule(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -101,30 +141,53 @@ void NFLSim::readSchedule(const std::string &filename)
     file.close();
 }
 
+/**
+ * @brief Parses game information for a specific team and week.
+ *
+ * This function takes a team's name, game information string, and the week number,
+ * and parses the game information to extract relevant details such as the week number,
+ * home team, and away team. It returns a vector of strings containing the parsed information.
+ *
+ * @param teamName The name of the team.
+ * @param gameInfo The game information string.
+ * @param week The week number.
+ * @return A vector of strings containing the parsed game information.
+ */
 std::vector<std::string> NFLSim::parseGameInfo(const std::string &teamName, const std::string &gameInfo, int week)
 {
-    std::vector<std::string> tokens;
-    std::stringstream ss(gameInfo);
+    std::vector<std::string> parsedTokens;
+    std::stringstream gameInfoStream(gameInfo);
     std::string token;
 
-    tokens.push_back(std::to_string(week));
-    tokens.push_back(teamName);
-    while (std::getline(ss, token, '#'))
+    // Add week number and team name to the parsed tokens
+    parsedTokens.push_back(std::to_string(week));
+    parsedTokens.push_back(teamName);
+
+    // Split the game information string by '#' and add tokens to the parsed tokens
+    while (std::getline(gameInfoStream, token, '#'))
     {
-        tokens.push_back(token);
+        parsedTokens.push_back(token);
     }
 
     // Determine the home and away teams based on the '@' symbol
-    if (tokens.size() > 2 && tokens[2][0] == '@')
+    if (parsedTokens.size() > 2 && parsedTokens[2][0] == '@')
     {
-        std::string tmp = tokens[1];
-        tokens[1] = tokens[2].substr(1); // The team after '@' is the away team
-        tokens[2] = tmp;                 // The current team is the home team
+        std::string homeTeam = parsedTokens[1];
+        parsedTokens[1] = parsedTokens[2].substr(1); // The team after '@' is the away team
+        parsedTokens[2] = homeTeam;                  // The current team is the home team
     }
 
-    return tokens;
+    return parsedTokens;
 }
 
+/**
+ * @brief Reads team data from a CSV file and initializes the team maps and league structure.
+ *
+ * This function reads team data from the provided CSV file, processes each line to extract team information,
+ * and creates Team objects for each team. It updates the team maps and league structure with the parsed team data.
+ *
+ * @param filename The name of the CSV file containing the team data.
+ */
 void NFLSim::readTeams(const std::string &filename)
 {
     std::ifstream file(filename);
@@ -138,7 +201,11 @@ void NFLSim::readTeams(const std::string &filename)
     std::string line;
     std::getline(file, line); // Skip header
 
-    int lineNumber = 0; // Initialize line number to track team index
+    int teamIndex = 0; // Initialize team index to track team position
+
+    // Temporary maps to store the second version of team data
+    std::map<std::string, std::shared_ptr<Team>> tempTeamMapByAbbreviation;
+    std::map<int, std::shared_ptr<Team>> tempTeamMapByIndex;
 
     while (std::getline(file, line))
     {
@@ -161,21 +228,29 @@ void NFLSim::readTeams(const std::string &filename)
         double longitude = std::stod(lonStr);
 
         // Create a shared_ptr to a Team object
-        auto team = std::make_shared<Team>(teamName, abbreviation, color, elo, city, latitude, longitude, lineNumber);
+        auto team = std::make_shared<Team>(teamName, abbreviation, color, elo, city, latitude, longitude, teamIndex);
 
         // Add the team to both maps
         teamMapByAbbreviation[abbreviation] = team;
-        teamMapByIndex[lineNumber] = team;
+        teamMapByIndex[teamIndex] = team;
 
         // Add the team to the league structure by conference and division
-        leagueStructure[conference][division].push_back(team); // This is where segmentation happens
+        leagueStructure[conference][division].push_back(team);
 
-        ++lineNumber;
+        ++teamIndex;
     }
 
     file.close();
+
+    // Optionally, you can now use tempTeamMapByAbbreviation and tempTeamMapByIndex for other purposes
 }
 
+/**
+ * @brief Prints the schedule for all teams in the league.
+ *
+ * This function prints the schedule for each team in the league, including the team's name,
+ * Elo rating, win count, and the details of each game in the schedule.
+ */
 void NFLSim::printSchedule() const
 {
     // Define column widths for formatting
@@ -183,109 +258,157 @@ void NFLSim::printSchedule() const
     const int weekColumnWidth = 7; // Width for "Week XX |"
     const int gameColumnWidth = 30;
 
+    // Print header
     std::cout << std::left << std::setw(teamColumnWidth) << "Team" << " | " << "Games" << std::endl;
     std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 
-    for (int i = 0; i < 32; ++i)
+    // Iterate over each team by index
+    for (int teamIndex = 0; teamIndex < 32; ++teamIndex)
     {
         // Retrieve the team from the map using the index
-        auto team = teamMapByIndex.at(i);
+        auto team = teamMapByIndex.at(teamIndex);
 
-        // Print the team name
-        std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getEloRating() << " | Wins: " << team->getWinCount() << std::endl;
-        std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
+        // Print the team name, Elo rating, and win count
+        printTeamHeader(team, teamColumnWidth, weekColumnWidth, gameColumnWidth);
 
         // Retrieve and print the games for the current team from the schedule
-        const auto &games = NFLSchedule.at(i);
-
-        int weekIndex = 0;
-
-        for (const auto &game : games)
-        {
-            std::cout << std::left << std::setw(teamColumnWidth) << ("Week " + std::to_string(weekIndex))
-                      << " | " << std::setw(gameColumnWidth) << game->getGameDetails(team) << std::endl;
-            ++weekIndex;
-        }
-
-        std::cout << std::endl;
+        const auto &games = NFLSchedule.at(teamIndex);
+        printTeamGames(team, games, teamColumnWidth, weekColumnWidth, gameColumnWidth);
     }
 }
 
-void NFLSim::printLeagueStructure() const
+/**
+ * @brief Prints the header for a team, including the team's name, Elo rating, and win count.
+ *
+ * @param team The team object.
+ * @param teamColumnWidth The width of the team column.
+ * @param weekColumnWidth The width of the week column.
+ * @param gameColumnWidth The width of the game column.
+ */
+void NFLSim::printTeamHeader(const std::shared_ptr<Team> &team, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const
 {
-    for (const auto &conferencePair : leagueStructure)
-    {
-        const std::string &conference = conferencePair.first;
-        std::cout << "Conference: " << conference << "\n";
-
-        for (const auto &divisionPair : conferencePair.second)
-        {
-            const std::string &division = divisionPair.first;
-            std::cout << "  Division: " << division << "\n";
-
-            for (const auto &team : divisionPair.second)
-            {
-                std::cout << "    Team: " << team->getName() << " ("
-                          << team->getAbbreviation() << "), Elo: "
-                          << team->getWinCount() << "\n";
-            }
-        }
-    }
+    std::cout << std::left << std::setw(teamColumnWidth) << team->getName() << " | Elo: " << team->getEloRating() << " | Wins: " << team->getWinCount() << std::endl;
+    std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 }
 
+/**
+ * @brief Prints the games for a team.
+ *
+ * @param team The team object.
+ * @param games The vector of games for the team.
+ * @param teamColumnWidth The width of the team column.
+ * @param weekColumnWidth The width of the week column.
+ * @param gameColumnWidth The width of the game column.
+ */
+void NFLSim::printTeamGames(const std::shared_ptr<Team> &team, const std::vector<std::shared_ptr<Game>> &games, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const
+{
+    int weekIndex = 0;
+
+    // Iterate over each game in the team's schedule
+    for (const auto &game : games)
+    {
+        std::cout << std::left << std::setw(teamColumnWidth) << ("Week " + std::to_string(weekIndex))
+                  << " | " << std::setw(gameColumnWidth) << game->getGameDetails(team) << std::endl;
+        ++weekIndex;
+    }
+
+    std::cout << std::endl;
+}
+
+/**
+ * @brief Calculates the field advantage based on the distance between two cities.
+ *
+ * This function calculates the field advantage for the home team based on the distance
+ * between the home and away cities. The advantage is calculated using the Haversine formula
+ * to determine the distance in miles, and then applying a point advantage based on the distance.
+ *
+ * @param homeCity The city of the home team.
+ * @param awayCity The city of the away team.
+ * @return The calculated field advantage in points.
+ */
 double NFLSim::calculateFieldAdvantage(const City &homeCity, const City &awayCity)
 {
-    constexpr double R = 6378137.0; // Radius of the Earth in meters
+    constexpr double EARTH_RADIUS_METERS = 6378137.0; // Radius of the Earth in meters
 
     auto toRadians = [](double degrees)
     {
         return degrees * M_PI / 180.0;
     };
 
-    double lat1 = toRadians(homeCity.latitude);
-    double lon1 = toRadians(homeCity.longitude);
-    double lat2 = toRadians(awayCity.latitude);
-    double lon2 = toRadians(awayCity.longitude);
+    double homeLatRad = toRadians(homeCity.latitude);
+    double homeLonRad = toRadians(homeCity.longitude);
+    double awayLatRad = toRadians(awayCity.latitude);
+    double awayLonRad = toRadians(awayCity.longitude);
 
-    double dLat = lat2 - lat1;
-    double dLon = lon2 - lon1;
-    double a = std::sin(dLat / 2) * std::sin(dLat / 2) +
-               std::cos(lat1) * std::cos(lat2) *
-                   std::sin(dLon / 2) * std::sin(dLon / 2);
+    double deltaLat = awayLatRad - homeLatRad;
+    double deltaLon = awayLonRad - homeLonRad;
+    double a = std::sin(deltaLat / 2) * std::sin(deltaLat / 2) +
+               std::cos(homeLatRad) * std::cos(awayLatRad) *
+                   std::sin(deltaLon / 2) * std::sin(deltaLon / 2);
     double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
-    double distance = R * c;
+    double distanceMeters = EARTH_RADIUS_METERS * c;
 
-    distance /= 1609.34; // Convert distance from meters to miles
+    double distanceMiles = distanceMeters / 1609.34; // Convert distance from meters to miles
 
-    distance = distance / 1000 * 4 + 48; // 4 point advantage for every 1,0000 miles, 48 for home field
+    double fieldAdvantage = distanceMiles / 1000 * 4 + 48; // 4 point advantage for every 1,000 miles, 48 for home field
 
-    return distance; // Distance in miles
+    return fieldAdvantage;
 }
 
+/**
+ * @brief Adjusts the Elo rating difference for bye weeks.
+ *
+ * This function adjusts the Elo rating difference between the home and away teams
+ * based on whether either team has a bye week.
+ *
+ * @param game The game object.
+ * @param homeTeam The home team.
+ * @param awayTeam The away team.
+ * @return The adjusted Elo rating difference.
+ */
 double NFLSim::adjustEloForByes(const Game &game, const Team &homeTeam, const Team &awayTeam)
 {
-    double elo_diff = homeTeam.getEloRating() - awayTeam.getEloRating();
+    double eloDifference = homeTeam.getEloRating() - awayTeam.getEloRating();
 
-    int homeTeamIdx = homeTeam.getScheduleIndex();
-    int awayTeamIdx = awayTeam.getScheduleIndex();
+    int homeTeamIndex = homeTeam.getScheduleIndex();
+    int awayTeamIndex = awayTeam.getScheduleIndex();
     int week = game.getWeekNumber();
-    if (NFLSchedule[homeTeamIdx][week]->getAwayTeam()->getName() == homeTeam.getName())
+
+    if (NFLSchedule[homeTeamIndex][week]->getAwayTeam()->getName() == homeTeam.getName())
     {
-        elo_diff += 25;
+        eloDifference += 25;
     }
-    if (NFLSchedule[awayTeamIdx][week]->getAwayTeam()->getName() == awayTeam.getName())
+    if (NFLSchedule[awayTeamIndex][week]->getAwayTeam()->getName() == awayTeam.getName())
     {
-        elo_diff -= 25;
+        eloDifference -= 25;
     }
 
-    return elo_diff;
+    return eloDifference;
 }
 
-double NFLSim::calculateHomeOddsFromEloDiff(double eloDiff)
+/**
+ * @brief Calculates the probability of the home team winning based on Elo difference.
+ *
+ * This function calculates the probability of the home team winning a game based on
+ * the difference in Elo ratings between the home and away teams.
+ *
+ * @param eloDifference The difference in Elo ratings between the home and away teams.
+ * @return The probability of the home team winning.
+ */
+double NFLSim::calculateHomeOddsFromEloDiff(double eloDifference)
 {
-    return 1.0 / (1.0 + std::exp(-eloDiff / 400.0));
+    return 1.0 / (1.0 + std::exp(-eloDifference / 400.0));
 }
 
+/**
+ * @brief Calculates the home team odds for a game.
+ *
+ * This function calculates the odds of the home team winning a game by adjusting the
+ * Elo rating difference for bye weeks and field advantage, and then calculating the
+ * probability based on the adjusted Elo difference.
+ *
+ * @param game A shared pointer to the game object.
+ */
 void NFLSim::calculateHomeOdds(std::shared_ptr<Game> &game)
 {
     // Access the home and away teams via shared pointers
@@ -298,77 +421,87 @@ void NFLSim::calculateHomeOdds(std::shared_ptr<Game> &game)
         return;
     }
 
-    double eloDiff = adjustEloForByes(*game, *homeTeam, *awayTeam);
+    double eloDifference = adjustEloForByes(*game, *homeTeam, *awayTeam);
 
     // If distance hasn't been calculated before, do it; else grab the value
     if (game->getFieldAdvantage() == -1)
     {
         double fieldAdvantage = calculateFieldAdvantage(homeTeam->getCity(), awayTeam->getCity());
         game->setFieldAdvantage(fieldAdvantage);
-        eloDiff += fieldAdvantage;
+        eloDifference += fieldAdvantage;
     }
     else
     {
-        eloDiff += game->getFieldAdvantage();
+        eloDifference += game->getFieldAdvantage();
     }
 
-    double homeOdds = calculateHomeOddsFromEloDiff(eloDiff);
+    double homeOdds = calculateHomeOddsFromEloDiff(eloDifference);
     game->setHomeTeamOdds(homeOdds);
 }
 
+/**
+ * @brief Processes all games in the schedule to calculate initial odds.
+ *
+ * This function iterates over each week's schedule and each game within the week.
+ * For each game that is not complete, it calculates the home team odds.
+ */
 void NFLSim::processAllGames()
 {
-    // Iterate over each week's schedule in NFLSchedule
     for (auto &weeklySchedule : NFLSchedule)
     {
-        // Iterate over each game in the weekly schedule
         for (auto &gamePtr : weeklySchedule)
         {
-            // Call calculateHomeOdds for each game that is not complete
             if (!gamePtr->isGameComplete())
             {
-                calculateHomeOdds(gamePtr); // Dereference shared_ptr to pass the object
+                calculateHomeOdds(gamePtr);
             }
         }
     }
 }
 
+/**
+ * @brief Processes games for a specific team to calculate initial odds.
+ *
+ * This function retrieves the weekly schedule for the specified team and iterates over each game.
+ * For each game that is not complete, it calculates the home team odds.
+ *
+ * @param teamIndex The index of the team in the schedule.
+ */
 void NFLSim::processTeamGames(int teamIndex)
 {
-    // Get the specific team's weekly schedule using the provided index
     auto &weeklySchedule = NFLSchedule[teamIndex];
 
-    // Iterate over each game in the team's weekly schedule
     for (auto &gamePtr : weeklySchedule)
     {
-        // Call calculateHomeOdds for each game that is not complete
         if (!gamePtr->isGameComplete())
         {
-            calculateHomeOdds(gamePtr); // Dereference shared_ptr to pass the object
+            calculateHomeOdds(gamePtr);
         }
     }
 }
 
+/**
+ * @brief Allows manual entry of game results and updates the simulation accordingly.
+ *
+ * This function prompts the user to enter a team abbreviation, game week, and score.
+ * It then updates the game result, recalculates Elo ratings, and processes the games for both teams.
+ */
 void NFLSim::manualGameResults()
 {
-    std::string teamAbbrev;
+    std::string teamAbbreviation;
     int week;
     std::string score;
 
-    // Prompt for team abbreviation
     std::cout << "Enter team abbreviation: ";
-    std::getline(std::cin, teamAbbrev);
+    std::getline(std::cin, teamAbbreviation);
 
-    // Prompt for game week
     std::cout << "Enter game week (0-based index): ";
     std::cin >> week;
     std::cin.ignore(); // Ignore newline character left in the input buffer
 
-    // Prompt for score
     std::cout << "Enter score (format: homeScore-awayScore): ";
     std::getline(std::cin, score);
 
-    // Parse the score
     size_t dashPos = score.find('-');
     if (dashPos == std::string::npos)
     {
@@ -379,8 +512,7 @@ void NFLSim::manualGameResults()
     int homeScore = std::stoi(score.substr(0, dashPos));
     int awayScore = std::stoi(score.substr(dashPos + 1));
 
-    // Find the team using the abbreviation
-    auto teamIt = teamMapByAbbreviation.find(teamAbbrev);
+    auto teamIt = teamMapByAbbreviation.find(teamAbbreviation);
     if (teamIt == teamMapByAbbreviation.end())
     {
         std::cerr << "Team abbreviation not found." << std::endl;
@@ -388,20 +520,19 @@ void NFLSim::manualGameResults()
     }
 
     auto team = teamIt->second;
-    int scheduleIdx = team->getScheduleIndex(); // Get the schedule index for the team
+    int scheduleIndex = team->getScheduleIndex();
 
-    // Check if the week is valid
-    if (scheduleIdx < 0 || scheduleIdx > 31 || week < 0 || week > 18)
+    if (scheduleIndex < 0 || scheduleIndex > 31 || week < 0 || week > 18)
     {
         std::cerr << "Invalid week or schedule index." << std::endl;
         return;
     }
 
-    // Retrieve the game and update the scores
-    auto &gamePtr = NFLSchedule[scheduleIdx][week]; // std::shared_ptr<Game>
-    auto &game = *gamePtr;                          // Dereference to get Game&
+    auto &gamePtr = NFLSchedule[scheduleIndex][week];
+    auto &game = *gamePtr;
 
-    // If game outcome has already been set, reset changes
+    // If game has previosly been completed, reset the elo rating effects from
+    // the previous update
     if (game.getEloRatingChange() != 0)
     {
         double eloChange = game.getEloRatingChange();
@@ -409,21 +540,30 @@ void NFLSim::manualGameResults()
         game.getAwayTeam()->updateEloRating(eloChange);
     }
 
-    // Set game scores
+    // Reset game if score is 0-0
+    if (homeScore == 0 and awayScore == 0)
+    {
+        game.setHomeTeamScore(0);
+        game.setAwayTeamScore(0);
+        game.setGameComplete(false);
+        game.setEloRatingChange(0);
+        processTeamGames(game.getHomeTeam()->getScheduleIndex());
+        processTeamGames(game.getAwayTeam()->getScheduleIndex());
+        std::cout << "Game reset." << std::endl;
+        return;
+    }
+
     game.setHomeTeamScore(homeScore);
     game.setAwayTeamScore(awayScore);
     game.setGameComplete(true);
 
-    // Check for tie
     if (homeScore == awayScore)
     {
-        // Handle a tie game
         game.getHomeTeam()->updateWinCount(0.5);
         game.getAwayTeam()->updateWinCount(0.5);
     }
     else
     {
-        // Handle normal win/loss outcome
         updateEloRatings(gamePtr);
 
         if (homeScore > awayScore)
@@ -438,23 +578,28 @@ void NFLSim::manualGameResults()
         }
     }
 
-    // Process games for both teams after the update
     processTeamGames(game.getHomeTeam()->getScheduleIndex());
     processTeamGames(game.getAwayTeam()->getScheduleIndex());
 
     std::cout << "Game and Elo updated." << std::endl;
 }
 
+/**
+ * @brief Updates the Elo ratings for a game based on the result.
+ *
+ * This function calculates the Elo rating adjustments for both teams based on the game result,
+ * margin of victory, and other factors. It then updates the Elo ratings for both teams.
+ *
+ * @param gamePtr A shared pointer to the game object.
+ */
 void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
 {
     const double K = 4.0;                   // K-factor
     const double MOV_MULTIPLIER_BASE = 2.2; // Base for margin-of-victory multiplier
     const double MOV_SCALE = 0.001;         // Scaling factor for Elo difference
 
-    // Dereference to get Game&
     auto &game = *gamePtr;
 
-    // Get home and away teams
     auto homeTeamPtr = game.getHomeTeam();
     auto awayTeamPtr = game.getAwayTeam();
 
@@ -464,7 +609,6 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
         return;
     }
 
-    // Access the Team objects through the shared pointers
     auto &homeTeam = *homeTeamPtr;
     auto &awayTeam = *awayTeamPtr;
 
@@ -474,39 +618,39 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
     int homeScore = game.getHomeTeamScore();
     int awayScore = game.getAwayTeamScore();
 
-    // Calculate the expected probability of home team winning
-    double eloDiff = homeElo - awayElo;
-    double homeWinProbability = 1.0 / (1.0 + std::exp(-eloDiff / 400.0));
+    double eloDifference = homeElo - awayElo;
+    double homeWinProbability = 1.0 / (1.0 + std::exp(-eloDifference / 400.0));
 
-    // Determine the actual result
     double actualResult = (homeScore > awayScore) ? 1.0 : (homeScore < awayScore) ? 0.0
                                                                                   : 0.5;
 
-    // Calculate forecast delta
     double forecastDelta = actualResult - homeWinProbability;
 
-    // Calculate margin of victory multiplier
-    double pointDiff = std::abs(homeScore - awayScore);
-    double movMultiplier = std::log(pointDiff + 1) * MOV_MULTIPLIER_BASE;
+    double pointDifference = std::abs(homeScore - awayScore);
+    double movMultiplier = std::log(pointDifference + 1) * MOV_MULTIPLIER_BASE;
 
-    // Calculate the Elo adjustment
-    double eloAdjustment = movMultiplier * (eloDiff * MOV_SCALE + MOV_MULTIPLIER_BASE);
+    double eloAdjustment = movMultiplier * (eloDifference * MOV_SCALE + MOV_MULTIPLIER_BASE);
 
-    // Adjust Elo ratings
     double homeEloAdjustment = K * forecastDelta * eloAdjustment;
     double awayEloAdjustment = -homeEloAdjustment;
 
     homeElo += homeEloAdjustment;
     awayElo += awayEloAdjustment;
 
-    // Update team ratings
     homeTeam.updateEloRating(homeEloAdjustment);
     awayTeam.updateEloRating(awayEloAdjustment);
 
-    // Set the Elo effect for the game
     game.setEloRatingChange(homeEloAdjustment);
 }
 
+/**
+ * @brief Simulates the regular season games.
+ *
+ * This function iterates through each week and each game in the schedule,
+ * generating random scores and determining the outcome of each game.
+ * It updates the game results, Elo ratings, and processes the games for each team.
+ * Finally, it determines the playoff teams and simulates the playoffs.
+ */
 void NFLSim::simulateRegularSeason()
 {
     // Initialize the random number generator
@@ -523,33 +667,33 @@ void NFLSim::simulateRegularSeason()
                 continue;
 
             // Generate a random float between 0 and 1
-            float randNum = static_cast<float>(std::rand()) / RAND_MAX;
+            float randomValue = static_cast<float>(std::rand()) / RAND_MAX;
 
             // Generate scores using a log-linear distribution
-            int score1 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
-            int score2 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+            int homeScore = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+            int awayScore = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
 
             int winningScore, losingScore;
             std::shared_ptr<Team> winningTeam, losingTeam;
 
             // Determine if the game ends in a tie
-            if (randNum < 0.01f)
+            if (randomValue < 0.01f)
             {
-                game->setHomeTeamScore(score1);
-                game->setAwayTeamScore(score1); // Both teams get the same score
+                game->setHomeTeamScore(homeScore);
+                game->setAwayTeamScore(homeScore); // Both teams get the same score
                 game->getHomeTeam()->updateWinCount(0.5);
                 game->getAwayTeam()->updateWinCount(0.5);
             }
             else
             {
                 // Ensure that one score is higher than the other
-                winningScore = std::max(score1, score2);
-                losingScore = std::min(score1, score2);
+                winningScore = std::max(homeScore, awayScore);
+                losingScore = std::min(homeScore, awayScore);
                 if (winningScore == losingScore)
                     winningScore++; // Avoid ties unless specified
 
                 // Determine the winning and losing team
-                if (randNum > game->getHomeTeamOdds())
+                if (randomValue > game->getHomeTeamOdds())
                 {
                     game->setAwayTeamScore(winningScore);
                     game->setHomeTeamScore(losingScore);
@@ -589,6 +733,12 @@ void NFLSim::simulateRegularSeason()
     simulatePlayoffs();
 }
 
+/**
+ * @brief Determines the playoff teams.
+ *
+ * This function determines the division winners and wildcard teams,
+ * and sets the playoff status for each team.
+ */
 void NFLSim::determinePlayoffTeams()
 {
     determineDivisionWinners();
@@ -599,6 +749,14 @@ void NFLSim::determinePlayoffTeams()
     }
 }
 
+/**
+ * @brief Determines the division winners for each conference.
+ *
+ * This function iterates through each conference and division,
+ * sorts the teams by win count, and resolves any ties to determine
+ * the top teams in each division. The division winners are added
+ * to the playoff seeding.
+ */
 void NFLSim::determineDivisionWinners()
 {
     // Data structure to store the top teams from each division for each conference
@@ -688,6 +846,13 @@ void NFLSim::determineDivisionWinners()
     }
 }
 
+/**
+ * @brief Determines the wildcard teams for each conference.
+ *
+ * This function iterates through each conference, identifies the non-division winners,
+ * sorts them by win count, and selects the top teams for the wildcard spots.
+ * The wildcard teams are then added to the playoff seeding.
+ */
 void NFLSim::determineWildCardTeams()
 {
     // Data structure to store wildcard teams for each conference
@@ -735,11 +900,21 @@ void NFLSim::determineWildCardTeams()
     }
 }
 
+/**
+ * @brief Resolves a tiebreaker between two teams.
+ *
+ * This function determines the winner between two teams based on their losses and point differentials.
+ * If the teams have not played each other or the point differentials are the same, a random choice is made.
+ *
+ * @param team1 The first team.
+ * @param team2 The second team.
+ * @return The team that wins the tiebreaker.
+ */
 std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &team1,
                                                 const std::shared_ptr<Team> &team2)
 {
-    auto team1LostTo = team1->getLosses();
-    auto team2LostTo = team2->getLosses();
+    auto team1Losses = team1->getLosses();
+    auto team2Losses = team2->getLosses();
 
     // Seed the random number generator if not already seeded
     static bool seeded = false;
@@ -750,11 +925,10 @@ std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &tea
     }
 
     // Check if both teams have played each other
-    auto team1LostToTeam2 = team1LostTo.find(team2);
-    auto team2LostToTeam1 = team2LostTo.find(team1);
+    auto team1LostToTeam2 = team1Losses.find(team2);
+    auto team2LostToTeam1 = team2Losses.find(team1);
 
-    if (team1LostToTeam2 != team1LostTo.end() &&
-        team2LostToTeam1 != team2LostTo.end())
+    if (team1LostToTeam2 != team1Losses.end() && team2LostToTeam1 != team2Losses.end())
     {
         int team1PointDifferential = team1LostToTeam2->second;
         int team2PointDifferential = team2LostToTeam1->second;
@@ -774,6 +948,12 @@ std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &tea
     return (std::rand() % 2 == 0) ? team1 : team2;
 }
 
+/**
+ * @brief Simulates the playoffs.
+ *
+ * This function simulates the playoff games for each conference and determines the conference champions.
+ * It then simulates the Super Bowl between the AFC and NFC champions.
+ */
 void NFLSim::simulatePlayoffs()
 {
     std::shared_ptr<Team> afcChampion, nfcChampion;
@@ -784,6 +964,7 @@ void NFLSim::simulatePlayoffs()
         const std::string &conference = conferencePair.first;
         std::vector<std::shared_ptr<Team>> teams = conferencePair.second;
 
+        // Set initial playoff round for each team
         for (auto &team : teams)
         {
             team->setPlayoffRound(1);
@@ -847,6 +1028,16 @@ void NFLSim::simulatePlayoffs()
     }
 }
 
+/**
+ * @brief Simulates a playoff game between two teams.
+ *
+ * This function creates a new game object for the playoff game, calculates the home team odds,
+ * generates random scores, determines the winner, and updates the Elo ratings.
+ *
+ * @param homeTeam The home team.
+ * @param awayTeam The away team.
+ * @return The team that wins the playoff game.
+ */
 std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam, std::shared_ptr<Team> awayTeam)
 {
     // Create a new game object for the playoff game
@@ -856,7 +1047,7 @@ std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam
     calculateHomeOdds(game);
 
     // Generate a random float between 0 and 1
-    float randNum = static_cast<float>(std::rand()) / RAND_MAX;
+    float randomValue = static_cast<float>(std::rand()) / RAND_MAX;
 
     // Generate scores using a log-linear distribution
     int score1 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
@@ -872,7 +1063,7 @@ std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam
         winningScore++; // Avoid ties unless specified
 
     // Determine the winning and losing team
-    if (randNum > game->getHomeTeamOdds())
+    if (randomValue > game->getHomeTeamOdds())
     {
         game->setAwayTeamScore(winningScore);
         game->setHomeTeamScore(losingScore);
@@ -897,10 +1088,18 @@ std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam
     return winningTeam;
 }
 
+/**
+ * @brief Simulates multiple NFL seasons and records the results.
+ *
+ * This function simulates a specified number of NFL seasons, recording the number of wins
+ * and playoff rounds reached by each team in each season. It then prints the results for
+ * each season and the final results in a table format.
+ *
+ * @param numSeasons The number of seasons to simulate.
+ */
 void NFLSim::simulateMultipleSeasons(int numSeasons)
 {
-
-    // Data structure to keep track of wins and playoff rounds for each team across seasons
+    // Data structures to keep track of wins and playoff rounds for each team across seasons
     std::map<std::string, std::vector<int>> teamWins;
     std::map<std::string, std::vector<int>> playoffRounds;
 
@@ -925,62 +1124,45 @@ void NFLSim::simulateMultipleSeasons(int numSeasons)
             teamWins[teamPair.first][season] = teamPair.second->getWinCount();
             playoffRounds[teamPair.first][season] = teamPair.second->getPlayoffRound();
         }
-
-        // Print the results of the season
-        std::cout << "Results of Season " << season + 1 << ":" << std::endl;
-        printSeasonResults(teamWins, season);
     }
 
     // Print the final results in a table format
     printFinalResults(teamWins, playoffRounds, numSeasons);
 }
 
-void NFLSim::printSeasonResults(const std::map<std::string, std::vector<int>> &teamWins, int season) const
-{
-    std::cout << std::left << std::setw(15) << "Team" << " | " << "Wins" << std::endl;
-    std::cout << std::string(25, '-') << std::endl;
-
-    for (const auto &teamPair : teamWins)
-    {
-        std::cout << std::left << std::setw(15) << teamPair.first << " | " << teamPair.second[season] << std::endl;
-    }
-}
-
+/**
+ * @brief Prints the final results of all simulated seasons.
+ *
+ * This function prints the number of wins for each team in each season, calculates
+ * the probabilities of reaching different playoff rounds, and prints the average
+ * number of wins for each team across all simulated seasons.
+ *
+ * @param teamWins A map containing the number of wins for each team across all seasons.
+ * @param playoffRounds A map containing the playoff rounds reached by each team across all seasons.
+ * @param numSeasons The number of seasons simulated.
+ */
 void NFLSim::printFinalResults(const std::map<std::string, std::vector<int>> &teamWins, const std::map<std::string, std::vector<int>> &playoffRounds, int numSeasons) const
 {
-    std::cout << std::left << std::setw(15) << "Team";
-    for (int season = 0; season < numSeasons; ++season)
-    {
-        std::cout << " | Season " << season + 1;
-    }
-    std::cout << std::endl;
-    std::cout << std::string(15 + (numSeasons * 10), '-') << std::endl;
+    // Calculate and print playoff probabilities
+    std::cout << std::left << std::setw(15) << "Team" << " | " << "Avg Wins" << " | " << "WildCard" << " | " << "Divisional" << " | " << "Conference" << " | " << "Super Bowl" << " | " << "Championships" << std::endl;
+    std::cout << std::string(95, '-') << std::endl;
 
     for (const auto &teamPair : teamWins)
     {
-        std::cout << std::left << std::setw(15) << teamPair.first;
-        for (int season = 0; season < numSeasons; ++season)
-        {
-            std::cout << " | " << std::setw(8) << teamPair.second[season];
-        }
-        std::cout << std::endl;
-    }
+        const std::string &teamName = teamPair.first;
+        const std::vector<int> &wins = teamPair.second;
+        const std::vector<int> &rounds = playoffRounds.at(teamName);
 
-    // Calculate and print playoff probabilities
-    std::cout << std::endl
-              << "Playoff Probabilities:" << std::endl;
-    std::cout << std::left << std::setw(15) << "Team" << " | " << "WildCard" << "Divisional" << " | " << "Conference" << " | " << "Super Bowl" << " | " << "Championships" << std::endl;
-    std::cout << std::string(50, '-') << std::endl;
+        double totalWins = std::accumulate(wins.begin(), wins.end(), 0.0);
+        double averageWins = totalWins / numSeasons;
 
-    for (const auto &teamPair : playoffRounds)
-    {
         int wildCardCount = 0;
         int divisionalCount = 0;
         int conferenceCount = 0;
         int superBowlCount = 0;
         int championshipCount = 0;
 
-        for (int round : teamPair.second)
+        for (int round : rounds)
         {
             if (round >= 1)
                 wildCardCount++;
@@ -1000,7 +1182,8 @@ void NFLSim::printFinalResults(const std::map<std::string, std::vector<int>> &te
         double superBowlProb = static_cast<double>(superBowlCount) / numSeasons;
         double championshipProb = static_cast<double>(championshipCount) / numSeasons;
 
-        std::cout << std::left << std::setw(15) << teamPair.first
+        std::cout << std::left << std::setw(15) << teamName
+                  << " | " << std::setw(8) << averageWins
                   << " | " << std::setw(10) << wildCardProb
                   << " | " << std::setw(10) << divisionalProb
                   << " | " << std::setw(10) << conferenceProb
