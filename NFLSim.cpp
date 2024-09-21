@@ -38,30 +38,36 @@ void NFLSim::runSimulation()
 
     while (true)
     {
-        std::cout << "Enter command (quit, update, print, run): ";
+        printSchedule();
+        std::cout << "Do you want to update the schedule? (yes/no): ";
         std::getline(std::cin, command);
 
-        if (command == "quit")
+        if (command == "no")
         {
             break;
         }
-        else if (command == "update")
+        else if (command == "yes")
         {
             manualGameResults();
         }
-        else if (command == "print")
-        {
-            printSchedule();
-        }
-        else if (command == "run")
-        {
-            handleRunCommand();
-        }
         else
         {
-            std::cout << "Unknown command. Please try again." << std::endl;
+            std::cout << "Unknown command. Please enter 'yes' or 'no'." << std::endl;
         }
     }
+
+    std::cout << "Do you want to save the schedule as a CSV file? (yes/no): ";
+    std::getline(std::cin, command);
+
+    if (command == "yes")
+    {
+        std::string filename;
+        std::cout << "Enter the filename: ";
+        std::getline(std::cin, filename);
+        saveScheduelAsCSV(filename);
+    }
+
+    handleRunCommand();
 }
 
 /**
@@ -202,11 +208,6 @@ void NFLSim::readTeams(const std::string &filename)
     std::getline(file, line); // Skip header
 
     int teamIndex = 0; // Initialize team index to track team position
-
-    // Temporary maps to store the second version of team data
-    std::map<std::string, std::shared_ptr<Team>> tempTeamMapByAbbreviation;
-    std::map<int, std::shared_ptr<Team>> tempTeamMapByIndex;
-
     while (std::getline(file, line))
     {
         std::stringstream ss(line);
@@ -232,7 +233,6 @@ void NFLSim::readTeams(const std::string &filename)
 
         // Add the team to both maps
         teamMapByAbbreviation[abbreviation] = team;
-        teamMapByIndex[teamIndex] = team;
 
         // Add the team to the league structure by conference and division
         leagueStructure[conference][division].push_back(team);
@@ -241,8 +241,6 @@ void NFLSim::readTeams(const std::string &filename)
     }
 
     file.close();
-
-    // Optionally, you can now use tempTeamMapByAbbreviation and tempTeamMapByIndex for other purposes
 }
 
 /**
@@ -262,18 +260,31 @@ void NFLSim::printSchedule() const
     std::cout << std::left << std::setw(teamColumnWidth) << "Team" << " | " << "Games" << std::endl;
     std::cout << std::string(teamColumnWidth + weekColumnWidth + 3 + gameColumnWidth, '-') << std::endl;
 
-    // Iterate over each team by index
-    for (int teamIndex = 0; teamIndex < 32; ++teamIndex)
+    // Iterate over each conference and division in the league structure
+    for (const auto &conferencePair : leagueStructure)
     {
-        // Retrieve the team from the map using the index
-        auto team = teamMapByIndex.at(teamIndex);
+        const auto &conference = conferencePair.first;
+        const auto &divisions = conferencePair.second;
 
-        // Print the team name, Elo rating, and win count
-        printTeamHeader(team, teamColumnWidth, weekColumnWidth, gameColumnWidth);
+        std::cout << "Conference: " << conference << std::endl;
 
-        // Retrieve and print the games for the current team from the schedule
-        const auto &games = NFLSchedule.at(teamIndex);
-        printTeamGames(team, games, teamColumnWidth, weekColumnWidth, gameColumnWidth);
+        for (const auto &divisionPair : divisions)
+        {
+            const auto &division = divisionPair.first;
+            const auto &teams = divisionPair.second;
+
+            std::cout << conference << " " << division << std::endl;
+
+            for (const auto &team : teams)
+            {
+                // Print the team name, Elo rating, and win count
+                printTeamHeader(team, teamColumnWidth, weekColumnWidth, gameColumnWidth);
+
+                // Retrieve and print the games for the current team from the schedule
+                const auto &games = NFLSchedule.at(team->getScheduleIndex());
+                printTeamGames(team, games, teamColumnWidth, weekColumnWidth, gameColumnWidth);
+            }
+        }
     }
 }
 
@@ -481,6 +492,51 @@ void NFLSim::processTeamGames(int teamIndex)
 }
 
 /**
+ * @brief Saves the schedule to a CSV file.
+ * @param filename The name of the CSV file to save the schedule to.
+ *
+ * This function writes the schedule to a CSV file, including the week number, home team, away team, home team score, away team score.
+ */
+void NFLSim::saveScheduelAsCSV(const std::string &filename) const
+{
+    std::ofstream file(filename);
+    if (!file.is_open())
+    {
+        std::cerr << "Error opening file: " << filename << std::endl;
+        return;
+    }
+
+    // Write the header row
+    file << "TEAM";
+    for (int week = 0; week <= 18; ++week)
+    {
+        file << "," << week;
+    }
+
+    // Iterate over each team's schedule in the order of NFLSchedule
+    for (const auto &teamSchedule : NFLSchedule)
+    {
+        if (teamSchedule.empty())
+            continue;
+
+        // Get the team from the first game in the schedule
+        auto team = teamSchedule.front()->getHomeTeam();
+
+        // Write the team abbreviation
+        file << "\n"
+             << team->getAbbreviation();
+
+        // Write the games for the current team from the schedule
+        for (const auto &game : teamSchedule)
+        {
+            file << "," << game->getCSVDetails(team);
+        }
+    }
+
+    file.close();
+}
+
+/**
  * @brief Allows manual entry of game results and updates the simulation accordingly.
  *
  * This function prompts the user to enter a team abbreviation, game week, and score.
@@ -495,43 +551,59 @@ void NFLSim::manualGameResults()
     std::cout << "Enter team abbreviation: ";
     std::getline(std::cin, teamAbbreviation);
 
+    auto teamIt = teamMapByAbbreviation.find(teamAbbreviation);
+    while (teamIt == teamMapByAbbreviation.end())
+    {
+        std::cerr << "Team abbreviation not found. Please enter a valid team abbreviation: ";
+        std::getline(std::cin, teamAbbreviation);
+        teamIt = teamMapByAbbreviation.find(teamAbbreviation);
+    }
+
     std::cout << "Enter game week (0-based index): ";
-    std::cin >> week;
+    while (!(std::cin >> week) || week < 0 || week > 18)
+    {
+        std::cerr << "Invalid week. Please enter a number between 0 and 18: ";
+        std::cin.clear();
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
     std::cin.ignore(); // Ignore newline character left in the input buffer
 
     std::cout << "Enter score (format: homeScore-awayScore): ";
     std::getline(std::cin, score);
 
     size_t dashPos = score.find('-');
-    if (dashPos == std::string::npos)
+    while (dashPos == std::string::npos)
     {
-        std::cerr << "Invalid score format. Use 'homeScore-awayScore'." << std::endl;
-        return;
+        std::cerr << "Invalid score format. Use 'homeScore-awayScore': ";
+        std::getline(std::cin, score);
+        dashPos = score.find('-');
     }
 
-    int homeScore = std::stoi(score.substr(0, dashPos));
-    int awayScore = std::stoi(score.substr(dashPos + 1));
-
-    auto teamIt = teamMapByAbbreviation.find(teamAbbreviation);
-    if (teamIt == teamMapByAbbreviation.end())
+    int homeScore, awayScore;
+    bool validScores = false;
+    while (!validScores)
     {
-        std::cerr << "Team abbreviation not found." << std::endl;
-        return;
+        try
+        {
+            homeScore = std::stoi(score.substr(0, dashPos));
+            awayScore = std::stoi(score.substr(dashPos + 1));
+            validScores = true;
+        }
+        catch (const std::invalid_argument &)
+        {
+            std::cerr << "Invalid score format. Scores must be integers. Enter score (format: homeScore-awayScore): ";
+            std::getline(std::cin, score);
+            dashPos = score.find('-');
+        }
     }
 
     auto team = teamIt->second;
     int scheduleIndex = team->getScheduleIndex();
 
-    if (scheduleIndex < 0 || scheduleIndex > 31 || week < 0 || week > 18)
-    {
-        std::cerr << "Invalid week or schedule index." << std::endl;
-        return;
-    }
-
     auto &gamePtr = NFLSchedule[scheduleIndex][week];
     auto &game = *gamePtr;
 
-    // If game has previosly been completed, reset the elo rating effects from
+    // If game has previously been completed, reset the elo rating effects from
     // the previous update
     if (game.getEloRatingChange() != 0)
     {
@@ -541,7 +613,7 @@ void NFLSim::manualGameResults()
     }
 
     // Reset game if score is 0-0
-    if (homeScore == 0 and awayScore == 0)
+    if (homeScore == 0 && awayScore == 0)
     {
         game.setHomeTeamScore(0);
         game.setAwayTeamScore(0);
@@ -549,6 +621,7 @@ void NFLSim::manualGameResults()
         game.setEloRatingChange(0);
         processTeamGames(game.getHomeTeam()->getScheduleIndex());
         processTeamGames(game.getAwayTeam()->getScheduleIndex());
+        game.setUserSet(false);
         std::cout << "Game reset." << std::endl;
         return;
     }
@@ -578,6 +651,7 @@ void NFLSim::manualGameResults()
         }
     }
 
+    game.setUserSet(true);
     processTeamGames(game.getHomeTeam()->getScheduleIndex());
     processTeamGames(game.getAwayTeam()->getScheduleIndex());
 
@@ -741,6 +815,7 @@ void NFLSim::simulateRegularSeason()
  */
 void NFLSim::determinePlayoffTeams()
 {
+    playoffSeeding.clear();
     determineDivisionWinners();
     determineWildCardTeams();
     for (auto &team : teamMapByAbbreviation)
@@ -761,7 +836,6 @@ void NFLSim::determineDivisionWinners()
 {
     // Data structure to store the top teams from each division for each conference
     std::map<std::string, std::vector<std::shared_ptr<Team>>> conferenceTeams;
-    playoffSeeding.clear(); // Clear previous playoff seeding
 
     // Iterate through each conference
     for (const auto &conferencePair : leagueStructure)
@@ -947,7 +1021,6 @@ std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &tea
     // If the teams have not played each other or point differentials are the same, return a random choice
     return (std::rand() % 2 == 0) ? team1 : team2;
 }
-
 /**
  * @brief Simulates the playoffs.
  *
@@ -1001,7 +1074,6 @@ void NFLSim::simulatePlayoffs()
 
         // Conference championship
         std::shared_ptr<Team> conferenceChampion = simulatePlayoffGame(round3[0], round3[1]);
-        std::cout << "Conference Champion (" << conference << "): " << conferenceChampion->getName() << std::endl;
 
         // Store the conference champion for the Super Bowl
         if (conference == "AFC")
@@ -1021,7 +1093,6 @@ void NFLSim::simulatePlayoffs()
     if (afcChampion && nfcChampion)
     {
         std::shared_ptr<Team> superBowlChampion = simulatePlayoffGame(afcChampion, nfcChampion);
-        std::cout << "Super Bowl Champion: " << superBowlChampion->getName() << std::endl;
 
         // Update the furthest playoff round for the Super Bowl champion
         superBowlChampion->setPlayoffRound(5);
@@ -1082,9 +1153,6 @@ std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam
     game->setGameComplete(true);
     updateEloRatings(game);
 
-    // Print the result of the game
-    std::cout << awayTeam->getAbbreviation() << game->getGameDetails(awayTeam) << std::endl;
-
     return winningTeam;
 }
 
@@ -1124,10 +1192,52 @@ void NFLSim::simulateMultipleSeasons(int numSeasons)
             teamWins[teamPair.first][season] = teamPair.second->getWinCount();
             playoffRounds[teamPair.first][season] = teamPair.second->getPlayoffRound();
         }
+
+        // Reset the season for the next simulation
+        resetSeason();
     }
 
     // Print the final results in a table format
     printFinalResults(teamWins, playoffRounds, numSeasons);
+}
+
+/**
+ * @brief Resets all games in the schedule that are not user set and resets each team.
+ *
+ * This function iterates through each week's schedule and each game within the week.
+ * For each game that is not user set, it resets the game scores, marks it as incomplete,
+ * and resets the Elo rating change. Additionally, it resets each team's statistics.
+ */
+void NFLSim::resetSeason()
+{
+    for (auto &weeklyGames : NFLSchedule)
+    {
+        for (auto &game : weeklyGames)
+        {
+            if (!game->isUserSet())
+            {
+                game->resetGame();
+            }
+        }
+    }
+
+    for (auto &teamPair : teamMapByAbbreviation)
+    {
+        teamPair.second->resetTeam();
+    }
+
+    for (auto &conferencePair : leagueStructure)
+    {
+        for (auto &divisionPair : conferencePair.second)
+        {
+            for (auto &team : divisionPair.second)
+            {
+                team->resetTeam();
+            }
+        }
+    }
+
+    processAllGames();
 }
 
 /**
@@ -1152,9 +1262,8 @@ void NFLSim::printFinalResults(const std::map<std::string, std::vector<int>> &te
         const std::string &teamName = teamPair.first;
         const std::vector<int> &wins = teamPair.second;
         const std::vector<int> &rounds = playoffRounds.at(teamName);
-
         double totalWins = std::accumulate(wins.begin(), wins.end(), 0.0);
-        double averageWins = totalWins / numSeasons;
+        double averageWins = totalWins / static_cast<double>(numSeasons);
 
         int wildCardCount = 0;
         int divisionalCount = 0;
@@ -1176,18 +1285,18 @@ void NFLSim::printFinalResults(const std::map<std::string, std::vector<int>> &te
                 championshipCount++;
         }
 
-        double wildCardProb = static_cast<double>(wildCardCount) / numSeasons;
-        double divisionalProb = static_cast<double>(divisionalCount) / numSeasons;
-        double conferenceProb = static_cast<double>(conferenceCount) / numSeasons;
-        double superBowlProb = static_cast<double>(superBowlCount) / numSeasons;
-        double championshipProb = static_cast<double>(championshipCount) / numSeasons;
+        double wildCardProb = static_cast<double>(wildCardCount) / numSeasons * 100.0;
+        double divisionalProb = static_cast<double>(divisionalCount) / numSeasons * 100.0;
+        double conferenceProb = static_cast<double>(conferenceCount) / numSeasons * 100.0;
+        double superBowlProb = static_cast<double>(superBowlCount) / numSeasons * 100.0;
+        double championshipProb = static_cast<double>(championshipCount) / numSeasons * 100.0;
 
         std::cout << std::left << std::setw(15) << teamName
-                  << " | " << std::setw(8) << averageWins
-                  << " | " << std::setw(10) << wildCardProb
-                  << " | " << std::setw(10) << divisionalProb
-                  << " | " << std::setw(10) << conferenceProb
-                  << " | " << std::setw(10) << superBowlProb
-                  << " | " << std::setw(10) << championshipProb << std::endl;
+                  << " | " << std::setw(8) << std::fixed << std::setprecision(2) << averageWins
+                  << " | " << std::setw(10) << std::fixed << std::setprecision(2) << wildCardProb
+                  << " | " << std::setw(10) << std::fixed << std::setprecision(2) << divisionalProb
+                  << " | " << std::setw(10) << std::fixed << std::setprecision(2) << conferenceProb
+                  << " | " << std::setw(10) << std::fixed << std::setprecision(2) << superBowlProb
+                  << " | " << std::setw(10) << std::fixed << std::setprecision(2) << championshipProb << std::endl;
     }
 }

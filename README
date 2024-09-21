@@ -1,0 +1,59 @@
+# NFL Simulation
+
+## Overview
+
+NFL Simulation is a program designed to simulate NFL games and seasons. It allows users to create teams, simulate games, and track statistics over a simulated season.
+
+## Features
+
+- Create and manage NFL teams
+- Simulate individual games
+- Simulate entire NFL seasons
+- Track player and team statistics
+
+## Installation
+
+1. Clone the repository:
+   ```sh
+   git clone https://github.com/yourusername/NFLSim.git
+   ```
+2. Navigate to the project directory:
+   ```sh
+   cd NFLSim
+   ```
+3. Install the required dependencies:
+   ```sh
+   pip install -r requirements.txt
+   ```
+
+## Usage
+
+1. Run the simulation:
+   ```sh
+   python main.py
+   ```
+2. Follow the on-screen instructions to create teams and simulate games.
+
+### Query Loop Commands
+
+Within the simulation, you can use various commands in the query loop to interact with the system:
+
+- `update`: Manually update a game.
+- `simulate_season`: Simulate an entire NFL season n times.
+- `exit`: Exit the simulation.
+
+### Simulation Mechanics
+
+The simulation operates using Elo ratings to determine the outcome of games. Each team is assigned an Elo rating, which is adjusted based on the results of simulated games. The Elo rating system helps to predict the probability of a team's victory and updates ratings to reflect the performance of teams over time.
+
+## Contributing
+
+Contributions are welcome! Please fork the repository and create a pull request with your changes.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+For any questions or suggestions, please open an issue or contact the project maintainer at your.email@example.com.

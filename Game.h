@@ -17,6 +17,7 @@ public:
 
     // Getter functions
     std::string getGameDetails(const std::shared_ptr<Team> &primaryTeam) const;
+    std::string getCSVDetails(const std::shared_ptr<Team> &primaryTeam) const;
     std::shared_ptr<Team> getHomeTeam() const;
     std::shared_ptr<Team> getAwayTeam() const;
 
@@ -28,6 +29,7 @@ public:
     double getHomeTeamOdds() const;
     double getFieldAdvantage() const;
     double getEloRatingChange() const;
+    bool isUserSet() const;
 
     // Setter functions
     void setHomeTeamScore(int score);
@@ -36,6 +38,8 @@ public:
     void setHomeTeamOdds(double odds);
     void setFieldAdvantage(double advantage);
     void setEloRatingChange(double eloChange);
+    void setUserSet(bool isUserSet);
+    void resetGame();
 
 private:
     std::shared_ptr<Team> homeTeam; // Home team
@@ -48,6 +52,7 @@ private:
     double homeTeamOdds;            // Odds for the home team
     double fieldAdvantage = -1;     // Field advantage value
     double eloRatingChange = 0;     // Change in Elo rating
+    bool userSet;                   // Indicates if the game result was set by the user
 };
 
 #endif // GAME_H

@@ -5,6 +5,7 @@ Team::Team()
       abbreviation(""),
       color(""),
       eloRating(0.0),
+      orgEloRating(0.0),
       city{"", 0.0, 0.0},
       scheduleIndex(0),
       winCount(0.0),
@@ -19,6 +20,7 @@ Team::Team(std::string teamName, std::string abbreviation, std::string teamColor
       abbreviation(abbreviation),
       color(teamColor),
       eloRating(eloRating),
+      orgEloRating(eloRating),
       city{cityName, lat, lon},
       scheduleIndex(scheduleIndex),
       winCount(0.0),
@@ -169,4 +171,16 @@ void Team::addLoss(const std::shared_ptr<Team> &opponent, int pointDifferential)
 const std::map<std::shared_ptr<Team>, int> &Team::getLosses() const
 {
     return losses;
+}
+
+/**
+ * @brief Reset the team's attributes to their original values.
+ */
+void Team::resetTeam()
+{
+    eloRating = orgEloRating;
+    winCount = 0.0;
+    playoffStatus = false;
+    playoffRound = 0;
+    losses.clear();
 }

@@ -45,6 +45,7 @@ public:
     void updateWinCount(float result);
     void setPlayoffStatus(bool madePlayoffs);
     void setPlayoffRound(int round);
+    void resetTeam();
 
     // Functions for tracking losses
     void addLoss(const std::shared_ptr<Team> &opponent, int pointDifferential);
@@ -56,6 +57,7 @@ private:
     std::string abbreviation; // Team abbreviation
     std::string color;        // Team color
     double eloRating;         // Team's Elo rating
+    double orgEloRating;      // Original Elo rating
     City city;                // City where the team is based
     int scheduleIndex;        // Index in the schedule
     float winCount;           // Number of wins

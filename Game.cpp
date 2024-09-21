@@ -72,6 +72,47 @@ std::string Game::getGameDetails(const std::shared_ptr<Team> &primary) const
     return "Error: game not found";
 }
 
+// Function to print the game details in CSV format
+/**
+ * @brief Prints the game details in CSV format.
+ * @param primary A shared pointer to the primary team.
+ * @return A string representing the game details in CSV format.
+ */
+std::string Game::getCSVDetails(const std::shared_ptr<Team> &primary) const
+{
+    std::string result;
+    if (byeWeek)
+    {
+        result = "BYE#N#0#0";
+    }
+    else
+    {
+        std::string teamAbbreviation;
+        if (homeTeam->getName() == primary->getName())
+        {
+            teamAbbreviation = awayTeam->getAbbreviation();
+        }
+        else if (awayTeam->getName() == primary->getName())
+        {
+            teamAbbreviation = "@" + homeTeam->getAbbreviation();
+        }
+        else
+        {
+            return "Error: game not found";
+        }
+
+        result = teamAbbreviation;
+        result += "#";
+        result += (gameComplete ? "Y" : "N");
+        result += "#";
+        result += std::to_string(homeTeamScore);
+        result += "#";
+        result += std::to_string(awayTeamScore);
+    }
+
+    return result;
+}
+
 // Getter for the home team
 /**
  * @brief Gets the home team.
@@ -172,6 +213,16 @@ double Game::getEloRatingChange() const
     return eloRatingChange;
 }
 
+// Getter for the userSet flag
+/**
+ * @brief Checks if the game result was set by the user.
+ * @return True if the game result was set by the user, false otherwise.
+ */
+bool Game::isUserSet() const
+{
+    return userSet;
+}
+
 // Setter for the home team score
 /**
  * @brief Sets the home team score.
@@ -230,4 +281,26 @@ void Game::setFieldAdvantage(double advantage)
 void Game::setEloRatingChange(double eloChange)
 {
     eloRatingChange = eloChange;
+}
+
+// Setter for the userSet flag
+/**
+ * @brief Sets the userSet flag.
+ * @param isUserSet The userSet flag.
+ */
+void Game::setUserSet(bool isUserSet)
+{
+    userSet = isUserSet;
+}
+
+// Function to reset the game
+/**
+ * @brief Resets the game.
+ */
+void Game::resetGame()
+{
+    homeTeamScore = 0;
+    awayTeamScore = 0;
+    gameComplete = false;
+    eloRatingChange = 0;
 }

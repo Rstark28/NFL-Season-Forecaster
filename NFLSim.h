@@ -1,21 +1,23 @@
 #ifndef NFLSIM_H
 #define NFLSIM_H
 
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <set>
-#include <map>
-#include <unordered_map>
-#include <cmath>
-#include <iomanip>
-#include <memory>
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <map>
+#include <memory>
 #include <numeric>
+#include <set>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "Game.h"
 
 class NFLSim
@@ -32,6 +34,7 @@ private:
     void simulateRegularSeason();
     void simulatePlayoffs();
     void simulateMultipleSeasons(int numSeasons);
+    void saveScheduelAsCSV(const std::string &filename) const;
 
     // Schedule and Team Management
     void readSchedule(const std::string &filename);
@@ -39,6 +42,7 @@ private:
     void processAllGames();
     void processTeamGames(int teamIndex);
     std::vector<std::string> parseGameInfo(const std::string &teamName, const std::string &gameInfo, int week);
+    void resetSeason();
 
     // Playoff Management
     void determinePlayoffTeams();
@@ -65,7 +69,6 @@ private:
     // Data Members
     std::vector<std::vector<std::shared_ptr<Game>>> NFLSchedule;
     std::unordered_map<std::string, std::shared_ptr<Team>> teamMapByAbbreviation;
-    std::unordered_map<int, std::shared_ptr<Team>> teamMapByIndex;
     std::map<std::string, std::map<std::string, std::vector<std::shared_ptr<Team>>>> leagueStructure;
     std::map<std::string, std::vector<std::shared_ptr<Team>>> playoffSeeding;
 };
