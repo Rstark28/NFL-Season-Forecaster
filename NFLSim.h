@@ -12,6 +12,7 @@
 #include <map>
 #include <memory>
 #include <numeric>
+#include <random>
 #include <set>
 #include <sstream>
 #include <string>
@@ -30,10 +31,10 @@ public:
 private:
     // Core Simulation Functions
     void runSimulation();
-    void handleRunCommand();
+    void handleRunCommand(bool print);
     void simulateRegularSeason();
     void simulatePlayoffs();
-    void simulateMultipleSeasons(int numSeasons);
+    void simulateMultipleSeasons(int numSeasons, bool print);
     void saveScheduelAsCSV(const std::string &filename) const;
 
     // Schedule and Team Management
@@ -62,7 +63,7 @@ private:
     // Output Functions
     void printSchedule() const;
     void printTeamHeader(const std::shared_ptr<Team> &team, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const;
-    void printTeamGames(const std::shared_ptr<Team> &team, const std::vector<std::shared_ptr<Game>> &games, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const;
+    void printTeamGames(const std::shared_ptr<Team> &team, const std::vector<std::shared_ptr<Game>> &games, int teamColumnWidth, int gameColumnWidth) const;
     void printSeasonResults(const std::map<std::string, std::vector<int>> &teamWins, int season) const;
     void printFinalResults(const std::map<std::string, std::vector<int>> &teamWins, const std::map<std::string, std::vector<int>> &playoffRounds, int numSeasons) const;
 

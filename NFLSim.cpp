@@ -42,6 +42,12 @@ void NFLSim::runSimulation()
         std::cout << "Do you want to update the schedule? (yes/no): ";
         std::getline(std::cin, command);
 
+        while (command != "yes" && command != "no")
+        {
+            std::cout << "Unknown command. Please enter 'yes' or 'no': ";
+            std::getline(std::cin, command);
+        }
+
         if (command == "no")
         {
             break;
@@ -50,14 +56,16 @@ void NFLSim::runSimulation()
         {
             manualGameResults();
         }
-        else
-        {
-            std::cout << "Unknown command. Please enter 'yes' or 'no'." << std::endl;
-        }
     }
 
     std::cout << "Do you want to save the schedule as a CSV file? (yes/no): ";
     std::getline(std::cin, command);
+
+    while (command != "yes" && command != "no")
+    {
+        std::cout << "Unknown command. Please enter 'yes' or 'no': ";
+        std::getline(std::cin, command);
+    }
 
     if (command == "yes")
     {
@@ -67,7 +75,23 @@ void NFLSim::runSimulation()
         saveScheduelAsCSV(filename);
     }
 
-    handleRunCommand();
+    std::cout << "Do you want to print the schedule after the simulation? (yes/no): ";
+    std::getline(std::cin, command);
+
+    while (command != "yes" && command != "no")
+    {
+        std::cout << "Unknown command. Please enter 'yes' or 'no': ";
+        std::getline(std::cin, command);
+    }
+
+    if (command == "yes")
+    {
+        handleRunCommand(true);
+    }
+    else
+    {
+        handleRunCommand(false);
+    }
 }
 
 /**
@@ -75,13 +99,13 @@ void NFLSim::runSimulation()
  *
  * This function prompts the user to enter the number of seasons to simulate and then runs the simulation for that many seasons.
  */
-void NFLSim::handleRunCommand()
+void NFLSim::handleRunCommand(bool print)
 {
     int numSeasons;
     std::cout << "Enter number of seasons to simulate: ";
     std::cin >> numSeasons;
     std::cin.ignore(); // Ignore newline character left in the input buffer
-    simulateMultipleSeasons(numSeasons);
+    simulateMultipleSeasons(numSeasons, print);
 }
 
 /**
@@ -124,7 +148,7 @@ void NFLSim::readSchedule(const std::string &filename)
 
             // Check if the game object already exists, if it does push existing object again
             int minScheduleIdx = std::min(newGame->getHomeTeam()->getScheduleIndex(), newGame->getAwayTeam()->getScheduleIndex());
-            if (minScheduleIdx < NFLSchedule.size())
+            if (minScheduleIdx < static_cast<int>(NFLSchedule.size()))
             {
                 teamSchedule.push_back(NFLSchedule[minScheduleIdx][week]);
             }
@@ -282,7 +306,7 @@ void NFLSim::printSchedule() const
 
                 // Retrieve and print the games for the current team from the schedule
                 const auto &games = NFLSchedule.at(team->getScheduleIndex());
-                printTeamGames(team, games, teamColumnWidth, weekColumnWidth, gameColumnWidth);
+                printTeamGames(team, games, teamColumnWidth, gameColumnWidth);
             }
         }
     }
@@ -311,7 +335,7 @@ void NFLSim::printTeamHeader(const std::shared_ptr<Team> &team, int teamColumnWi
  * @param weekColumnWidth The width of the week column.
  * @param gameColumnWidth The width of the game column.
  */
-void NFLSim::printTeamGames(const std::shared_ptr<Team> &team, const std::vector<std::shared_ptr<Game>> &games, int teamColumnWidth, int weekColumnWidth, int gameColumnWidth) const
+void NFLSim::printTeamGames(const std::shared_ptr<Team> &team, const std::vector<std::shared_ptr<Game>> &games, int teamColumnWidth, int gameColumnWidth) const
 {
     int weekIndex = 0;
 
@@ -727,8 +751,11 @@ void NFLSim::updateEloRatings(std::shared_ptr<Game> gamePtr)
  */
 void NFLSim::simulateRegularSeason()
 {
-    // Initialize the random number generator
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    // Initialize the random number generator with a random seed
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::lognormal_distribution<> scoreDis(1.0, 0.5);
 
     // Iterate through each week
     for (const auto &weeklyGames : NFLSchedule)
@@ -741,11 +768,11 @@ void NFLSim::simulateRegularSeason()
                 continue;
 
             // Generate a random float between 0 and 1
-            float randomValue = static_cast<float>(std::rand()) / RAND_MAX;
+            float randomValue = dis(gen);
 
-            // Generate scores using a log-linear distribution
-            int homeScore = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
-            int awayScore = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+            // Generate scores using a log-normal distribution
+            int homeScore = static_cast<int>(scoreDis(gen));
+            int awayScore = static_cast<int>(scoreDis(gen));
 
             int winningScore, losingScore;
             std::shared_ptr<Team> winningTeam, losingTeam;
@@ -1021,6 +1048,7 @@ std::shared_ptr<Team> NFLSim::resolveTiebreaker(const std::shared_ptr<Team> &tea
     // If the teams have not played each other or point differentials are the same, return a random choice
     return (std::rand() % 2 == 0) ? team1 : team2;
 }
+
 /**
  * @brief Simulates the playoffs.
  *
@@ -1117,12 +1145,18 @@ std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam
     // Calculate home odds based on Elo ratings and other factors
     calculateHomeOdds(game);
 
+    // Initialize the random number generator with a random seed
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    std::lognormal_distribution<> scoreDis(1.0, 0.5);
+
     // Generate a random float between 0 and 1
-    float randomValue = static_cast<float>(std::rand()) / RAND_MAX;
+    float randomValue = dis(gen);
 
     // Generate scores using a log-linear distribution
-    int score1 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
-    int score2 = static_cast<int>(3 + 30 * std::log(1.0f + std::rand() / (static_cast<float>(RAND_MAX) + 1.0f)));
+    int score1 = static_cast<int>(3 + 30 * scoreDis(gen));
+    int score2 = static_cast<int>(3 + 30 * scoreDis(gen));
 
     int winningScore, losingScore;
     std::shared_ptr<Team> winningTeam, losingTeam;
@@ -1165,7 +1199,7 @@ std::shared_ptr<Team> NFLSim::simulatePlayoffGame(std::shared_ptr<Team> homeTeam
  *
  * @param numSeasons The number of seasons to simulate.
  */
-void NFLSim::simulateMultipleSeasons(int numSeasons)
+void NFLSim::simulateMultipleSeasons(int numSeasons, bool print)
 {
     // Data structures to keep track of wins and playoff rounds for each team across seasons
     std::map<std::string, std::vector<int>> teamWins;
@@ -1181,8 +1215,6 @@ void NFLSim::simulateMultipleSeasons(int numSeasons)
     // Simulate each season
     for (int season = 0; season < numSeasons; ++season)
     {
-        std::cout << "Simulating Season " << season + 1 << "..." << std::endl;
-
         // Simulate the regular season
         simulateRegularSeason();
 
@@ -1191,6 +1223,11 @@ void NFLSim::simulateMultipleSeasons(int numSeasons)
         {
             teamWins[teamPair.first][season] = teamPair.second->getWinCount();
             playoffRounds[teamPair.first][season] = teamPair.second->getPlayoffRound();
+        }
+
+        if (print)
+        {
+            printSchedule();
         }
 
         // Reset the season for the next simulation
@@ -1220,21 +1257,9 @@ void NFLSim::resetSeason()
             }
         }
     }
-
-    for (auto &teamPair : teamMapByAbbreviation)
+    for (const auto &teamPair : teamMapByAbbreviation)
     {
         teamPair.second->resetTeam();
-    }
-
-    for (auto &conferencePair : leagueStructure)
-    {
-        for (auto &divisionPair : conferencePair.second)
-        {
-            for (auto &team : divisionPair.second)
-            {
-                team->resetTeam();
-            }
-        }
     }
 
     processAllGames();

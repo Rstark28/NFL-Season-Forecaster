@@ -301,6 +301,6 @@ void Game::resetGame()
 {
     homeTeamScore = 0;
     awayTeamScore = 0;
-    gameComplete = false;
+    gameComplete = byeWeek ? true : false;
     eloRatingChange = 0;
 }
