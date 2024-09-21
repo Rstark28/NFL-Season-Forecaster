@@ -1,59 +1,71 @@
+Here's an improved version of your README file with better formatting, additional details, and clearer instructions:
+
+---
+
 # NFL Simulation
 
 ## Overview
 
-NFL Simulation is a program designed to simulate NFL games and seasons. It allows users to create teams, simulate games, and track statistics over a simulated season.
+NFL Simulation is a comprehensive program that simulates NFL games and entire seasons, allowing users to create teams, simulate matches, and track a variety of statistics across multiple simulated seasons. This simulation uses Elo ratings to dynamically adjust team performance based on game outcomes.
 
 ## Features
 
-- Create and manage NFL teams
-- Simulate individual games
-- Simulate entire NFL seasons
-- Track player and team statistics
+- **Team Creation & Management**: Set up and manage NFL teams, including custom teams.
+- **Game Simulation**: Simulate individual games with dynamic outcomes based on team ratings.
+- **Season Simulation**: Simulate full NFL seasons or run multi-season simulations.
+- **Statistics Tracking**: Keep track of player and team stats across multiple seasons.
+- **Elo Rating System**: Uses an Elo-based rating system to predict and adjust team performance.
 
 ## Installation
 
-1. Clone the repository:
+1. **Clone the repository**:
    ```sh
-   git clone https://github.com/yourusername/NFLSim.git
+   git clone https://github.com/Rstark28/NFLSim.git
    ```
-2. Navigate to the project directory:
+2. **Navigate to the project directory**:
    ```sh
    cd NFLSim
    ```
-3. Install the required dependencies:
+3. **Build the project** using `make`:
    ```sh
-   pip install -r requirements.txt
+   make
    ```
 
 ## Usage
 
-1. Run the simulation:
+1. **Run the simulation**:
    ```sh
-   python main.py
+   ./sim schedule.csv
    ```
-2. Follow the on-screen instructions to create teams and simulate games.
+   Here, `schedule.csv` contains the schedule for the games you want to simulate.
+   
+2. **Follow the on-screen instructions** to create teams, simulate games, and view statistics.
 
-### Query Loop Commands
+### Available Commands (Query Loop)
 
-Within the simulation, you can use various commands in the query loop to interact with the system:
+Within the query loop of the simulation, you can enter the following commands to interact with the system:
 
-- `update`: Manually update a game.
-- `simulate_season`: Simulate an entire NFL season n times.
+- `update`: Manually update a specific game.
+- `simulate_season [n]`: Simulate an entire NFL season, with the option to repeat for `n` seasons.
 - `exit`: Exit the simulation.
 
 ### Simulation Mechanics
 
-The simulation operates using Elo ratings to determine the outcome of games. Each team is assigned an Elo rating, which is adjusted based on the results of simulated games. The Elo rating system helps to predict the probability of a team's victory and updates ratings to reflect the performance of teams over time.
+The simulation uses **Elo ratings** to determine the outcomes of games. Each team is assigned an initial Elo rating, which is adjusted based on the results of each simulated game. This system predicts the probability of victory based on team ratings and updates them to reflect performance changes over time. The simulation also factors in score differentials and other parameters to fine-tune the ratings after each game.
 
-## Contributing
+## Contribution Guidelines
 
-Contributions are welcome! Please fork the repository and create a pull request with your changes.
+We welcome contributions from the community! To contribute:
 
-## License
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix:
+   ```sh
+   git checkout -b feature-branch-name
+   ```
+3. Commit your changes:
+   ```sh
+   git commit -m "Description of the feature/fix"
+   ```
+4. Push to your fork and submit a pull request.
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Contact
-
-For any questions or suggestions, please open an issue or contact the project maintainer at your.email@example.com.
+Feel free to open an issue for suggestions or to report bugs.
